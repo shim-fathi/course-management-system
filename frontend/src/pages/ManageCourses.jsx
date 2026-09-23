@@ -49,6 +49,9 @@ function ManageCourses() {
 
   const [formData, setFormData] = useState(EMPTY_COURSE);
   const [formError, setFormError] = useState("");
+  // CR-002: field-level validation errors returned by the server,
+  // e.g. { title: "Title must contain at least 3 characters" }
+  const [fieldErrors, setFieldErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
 
@@ -96,6 +99,14 @@ function ManageCourses() {
       ...formData,
       [name]: value,
     });
+
+    // Clear this field's error as soon as the admin starts fixing it.
+    if (fieldErrors[name]) {
+      setFieldErrors({
+        ...fieldErrors,
+        [name]: undefined,
+      });
+    }
   };
 
 
@@ -104,6 +115,7 @@ function ManageCourses() {
     setEditingId(null);
     setFormData(EMPTY_COURSE);
     setFormError("");
+    setFieldErrors({});
     setError("");
     setSuccess("");
   };
@@ -125,6 +137,7 @@ function ManageCourses() {
     });
 
     setFormError("");
+    setFieldErrors({});
     setError("");
     setSuccess("");
   };
@@ -135,6 +148,7 @@ function ManageCourses() {
     setEditingId(null);
     setFormData(EMPTY_COURSE);
     setFormError("");
+    setFieldErrors({});
   };
 
 
@@ -145,27 +159,23 @@ function ManageCourses() {
     event.preventDefault();
 
     setFormError("");
+    setFieldErrors({});
     setError("");
     setSuccess("");
 
 
-    // ---------- Client side validation ----------
+    // ---------- Lightweight client-side check ----------
+    // This only gives instant feedback for empty required fields.
+    // The server performs the authoritative validation (CR-002) and its
+    // field-level messages are what get displayed below each input.
     if (
       !formData.title.trim() ||
       !formData.category.trim() ||
-      !formData.level
+      !formData.level ||
+      !formData.duration.trim() ||
+      formData.price === ""
     ) {
-      setFormError("Title, category and level are required.");
-      return;
-    }
-
-    if (!formData.duration.trim()) {
-      setFormError("Duration is required (for example: 8 Weeks).");
-      return;
-    }
-
-    if (formData.price === "" || Number(formData.price) < 0) {
-      setFormError("Please enter a valid price.");
+      setFormError("Please fill in all required fields.");
       return;
     }
 
@@ -212,11 +222,19 @@ function ManageCourses() {
 
     } catch (error) {
 
-      // 400 = the backend rejected the data
-      setFormError(
-        error.response?.data?.message ||
-        "Could not save the course. Please try again."
-      );
+      // 400 = the backend rejected the data (CR-002 structured response:
+      // { message: "Validation failed", errors: { field: "message" } })
+      const serverErrors = error.response?.data?.errors;
+
+      if (serverErrors && Object.keys(serverErrors).length > 0) {
+        setFieldErrors(serverErrors);
+        setFormError("Please fix the highlighted fields.");
+      } else {
+        setFormError(
+          error.response?.data?.message ||
+          "Could not save the course. Please try again."
+        );
+      }
 
     } finally {
 
@@ -318,13 +336,17 @@ function ManageCourses() {
 
                   <input
                     id="title"
-                    className="input"
+                    className={`input${fieldErrors.title ? " input-invalid" : ""}`}
                     type="text"
                     name="title"
                     value={formData.title}
                     onChange={handleChange}
                     placeholder="e.g. React"
                   />
+
+                  {fieldErrors.title && (
+                    <p className="field-error">{fieldErrors.title}</p>
+                  )}
                 </div>
 
 
@@ -333,13 +355,17 @@ function ManageCourses() {
 
                   <input
                     id="category"
-                    className="input"
+                    className={`input${fieldErrors.category ? " input-invalid" : ""}`}
                     type="text"
                     name="category"
                     value={formData.category}
                     onChange={handleChange}
                     placeholder="e.g. Frontend"
                   />
+
+                  {fieldErrors.category && (
+                    <p className="field-error">{fieldErrors.category}</p>
+                  )}
                 </div>
 
               </div>
@@ -352,7 +378,7 @@ function ManageCourses() {
 
                   <select
                     id="level"
-                    className="input"
+                    className={`input${fieldErrors.level ? " input-invalid" : ""}`}
                     name="level"
                     value={formData.level}
                     onChange={handleChange}
@@ -363,6 +389,10 @@ function ManageCourses() {
                       </option>
                     ))}
                   </select>
+
+                  {fieldErrors.level && (
+                    <p className="field-error">{fieldErrors.level}</p>
+                  )}
                 </div>
 
 
@@ -371,13 +401,17 @@ function ManageCourses() {
 
                   <input
                     id="duration"
-                    className="input"
+                    className={`input${fieldErrors.duration ? " input-invalid" : ""}`}
                     type="text"
                     name="duration"
                     value={formData.duration}
                     onChange={handleChange}
                     placeholder="e.g. 10 Weeks"
                   />
+
+                  {fieldErrors.duration && (
+                    <p className="field-error">{fieldErrors.duration}</p>
+                  )}
                 </div>
 
 
@@ -386,7 +420,7 @@ function ManageCourses() {
 
                   <input
                     id="price"
-                    className="input"
+                    className={`input${fieldErrors.price ? " input-invalid" : ""}`}
                     type="number"
                     min="0"
                     step="0.01"
@@ -395,6 +429,10 @@ function ManageCourses() {
                     onChange={handleChange}
                     placeholder="e.g. 25000"
                   />
+
+                  {fieldErrors.price && (
+                    <p className="field-error">{fieldErrors.price}</p>
+                  )}
                 </div>
 
               </div>
@@ -405,13 +443,17 @@ function ManageCourses() {
 
                 <input
                   id="image"
-                  className="input"
+                  className={`input${fieldErrors.image ? " input-invalid" : ""}`}
                   type="text"
                   name="image"
                   value={formData.image}
                   onChange={handleChange}
                   placeholder="https://placehold.co/300x180?text=React"
                 />
+
+                {fieldErrors.image && (
+                  <p className="field-error">{fieldErrors.image}</p>
+                )}
               </div>
 
 
@@ -420,13 +462,17 @@ function ManageCourses() {
 
                 <textarea
                   id="description"
-                  className="input"
+                  className={`input${fieldErrors.description ? " input-invalid" : ""}`}
                   rows="4"
                   name="description"
                   value={formData.description}
                   onChange={handleChange}
                   placeholder="Short summary of what students will learn."
                 />
+
+                {fieldErrors.description && (
+                  <p className="field-error">{fieldErrors.description}</p>
+                )}
               </div>
 
 
@@ -587,4 +633,3 @@ function ManageCourses() {
 }
 
 export default ManageCourses;
-

@@ -54,6 +54,16 @@ const Course = {
     return result.insertId;
   },
 
+   //find course by id
+  async findByTitle(title) {
+    const [rows] = await db.execute(
+      "SELECT * FROM courses WHERE LOWER(title) = LOWER(?)",
+      [title]
+    );
+
+    return rows[0];
+  },
+
 
   // Update course
   async update(id, course) {
@@ -92,6 +102,8 @@ const Course = {
 
     return result;
   },
+
+  
 
 
   // Delete course

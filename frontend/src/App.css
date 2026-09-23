@@ -771,6 +771,21 @@ a:hover {
     0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
+.input-invalid {
+  border-color: var(--color-danger);
+}
+
+.input-invalid:focus {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
+}
+
+.field-error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-error-text);
+}
+
 textarea.input {
   resize: vertical;
 }

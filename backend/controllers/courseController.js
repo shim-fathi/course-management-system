@@ -1,5 +1,6 @@
 const Course = require("../models/courseModel");
 const User = require("../models/userModel");
+const validateCourse = require("../helpers/validateCourse");
 
 // Get all courses
 const getAllCourses = async (req, res) => {
@@ -62,22 +63,18 @@ const createCourse = async (req, res) => {
       description,
     } = req.body;
 
-    // Basic validation
-    if (!title || !category || !level) {
+        const { errors, data } = await validateCourse(req.body, {
+      isUpdate: false,
+    });
+
+    if (Object.keys(errors).length > 0) {
       return res.status(400).json({
-        message: "Title, category and level are required",
+        message: "Validation failed",
+        errors,
       });
     }
 
-    const courseId = await Course.create({
-      title,
-      category,
-      level,
-      duration,
-      price,
-      image,
-      description,
-    });
+    const courseId = await Course.create(data);
 
     res.status(201).json({
       message: "Course created successfully",
@@ -118,15 +115,21 @@ const updateCourse = async (req, res) => {
       });
     }
 
-    await Course.update(id, {
-      title,
-      category,
-      level,
-      duration,
-      price,
-      image,
-      description,
+        const { errors, data } = await validateCourse(req.body, {
+      isUpdate: true,
+      currentId: id,
     });
+
+  
+
+    if (Object.keys(errors).length > 0) {
+      return res.status(400).json({
+        message: "Validation failed",
+        errors,
+      });
+    }
+
+    await Course.update(id, data);
 
     // Get updated course
     const updatedCourse = await Course.getById(id);
