@@ -886,7 +886,25 @@ textarea.input {
   font-size: 13px;
   font-weight: 600;
 }
+.result-counter {
+  margin: 0 0 18px;
 
+  font-size: 14px;
+
+  color: var(--color-muted);
+
+  font-weight: 600;
+}
+
+.table th[onClick] {
+  cursor: pointer;
+
+  user-select: none;
+}
+
+.table th[onClick]:hover {
+  background-color: #e2e8f0;
+}
 
 /* =========================================
    12. Messages and states
