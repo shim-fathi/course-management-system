@@ -37,7 +37,13 @@ async function fetchAllCourses() {
 
 function ManageCourses() {
 
-  const [courses, setCourses] = useState([]);
+const [courses, setCourses] = useState([]);
+const [searchTerm, setSearchTerm] = useState("");
+const [categoryFilter, setCategoryFilter] = useState("All");
+const [levelFilter, setLevelFilter] = useState("All");
+
+const [sortField, setSortField] = useState("");
+const [sortDirection, setSortDirection] = useState("asc");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -87,6 +93,76 @@ function ManageCourses() {
   const refreshCourses = async () => {
     setCourses(await fetchAllCourses());
   };
+
+  const filteredAndSortedCourses = courses
+  .filter((course) => {
+    const search = searchTerm.toLowerCase().trim();
+
+    if (!search) return true;
+
+    return (
+      String(course.id).toLowerCase().includes(search) ||
+      String(course.title || "").toLowerCase().includes(search) ||
+      String(course.category || "").toLowerCase().includes(search)
+    );
+  })
+  .filter((course) => {
+    if (categoryFilter === "All") return true;
+
+    return course.category === categoryFilter;
+  })
+  .filter((course) => {
+    if (levelFilter === "All") return true;
+
+    return course.level === levelFilter;
+  })
+  .sort((a, b) => {
+
+    if (!sortField) return 0;
+
+    let valueA = a[sortField];
+    let valueB = b[sortField];
+
+    if (sortField === "price" || sortField === "id") {
+      valueA = Number(valueA);
+      valueB = Number(valueB);
+    } else {
+      valueA = String(valueA || "").toLowerCase();
+      valueB = String(valueB || "").toLowerCase();
+    }
+
+    if (valueA < valueB) {
+      return sortDirection === "asc" ? -1 : 1;
+    }
+
+    if (valueA > valueB) {
+      return sortDirection === "asc" ? 1 : -1;
+    }
+
+    return 0;
+  });
+
+  //sort function
+  const handleSort = (field) => {
+
+  if (sortField === field) {
+    setSortDirection(
+      sortDirection === "asc" ? "desc" : "asc"
+    );
+  } else {
+    setSortField(field);
+    setSortDirection("asc");
+  }
+};
+
+//reset filter
+const resetFilters = () => {
+  setSearchTerm("");
+  setCategoryFilter("All");
+  setLevelFilter("All");
+  setSortField("");
+  setSortDirection("asc");
+};
 
 
   // ---------- Form helpers ----------
@@ -307,8 +383,61 @@ function ManageCourses() {
           </button>
 
         </div>
+  
+<div className="filter-bar">
 
+  <input
+    type="text"
+    className="input"
+    placeholder="Search by title, category or course ID"
+    value={searchTerm}
+    onChange={(e) => setSearchTerm(e.target.value)}
+  />
 
+  <select
+    className="input"
+    value={categoryFilter}
+    onChange={(e) => setCategoryFilter(e.target.value)}
+  >
+    <option value="All">All Categories</option>
+
+    {[...new Set(
+      courses
+        .map((course) => course.category)
+        .filter(Boolean)
+    )].map((category) => (
+      <option key={category} value={category}>
+        {category}
+      </option>
+    ))}
+  </select>
+
+  <select
+    className="input"
+    value={levelFilter}
+    onChange={(e) => setLevelFilter(e.target.value)}
+  >
+    <option value="All">All Levels</option>
+
+    {LEVEL_OPTIONS.map((level) => (
+      <option key={level} value={level}>
+        {level}
+      </option>
+    ))}
+  </select>
+
+  <button
+    type="button"
+    className="clear-filter-btn"
+    onClick={resetFilters}
+  >
+    Reset Filters
+  </button>
+
+</div>
+<p className="result-counter">
+  Showing {filteredAndSortedCourses.length} of {courses.length} courses
+</p>
         {/* ---------- Success / error messages ---------- */}
 
         {success && <p className="success">{success}</p>}
@@ -319,6 +448,10 @@ function ManageCourses() {
         {/* ---------- Add / Edit form ---------- */}
 
         {showForm && (
+
+    
+
+          
 
           <section className="section-card">
 
@@ -532,7 +665,7 @@ function ManageCourses() {
 
           {!loading && courses.length === 0 && (
             <p className="empty">
-              No courses yet. Click "Add Course" to create the first one.
+              No courses found.
             </p>
           )}
 
@@ -545,20 +678,33 @@ function ManageCourses() {
 
                 <thead>
                   <tr>
-                    <th>ID</th>
+                    <th onClick={() => handleSort("id")}>
+  ID {sortField === "id" && (sortDirection === "asc" ? "↑" : "↓")}
+</th>
                     <th>Image</th>
-                    <th>Title</th>
-                    <th>Category</th>
-                    <th>Level</th>
-                    <th>Duration</th>
-                    <th>Price</th>
+                    <th onClick={() => handleSort("title")}>
+  Title {sortField === "title" && (sortDirection === "asc" ? "↑" : "↓")}
+</th>
+                    <th onClick={() => handleSort("category")}>
+  Category {sortField === "category" && (sortDirection === "asc" ? "↑" : "↓")}
+</th>
+                    <th onClick={() => handleSort("level")}>
+  Level {sortField === "level" && (sortDirection === "asc" ? "↑" : "↓")}
+</th>
+
+                    <th onClick={() => handleSort("duration")}>
+  Duration {sortField === "duration" && (sortDirection === "asc" ? "↑" : "↓")}
+</th>
+                    <th onClick={() => handleSort("price")}>
+  Price {sortField === "price" && (sortDirection === "asc" ? "↑" : "↓")}
+</th>
                     <th className="table-actions-column">Actions</th>
                   </tr>
                 </thead>
 
                 <tbody>
 
-                  {courses.map((course) => (
+                  {filteredAndSortedCourses.map((course) => (
 
                     <tr key={course.id}>
 
