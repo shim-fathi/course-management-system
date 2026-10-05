@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FaSearch, FaSignInAlt } from "react-icons/fa";
@@ -18,7 +19,20 @@ function Login() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const redirectTo = location.state?.from;
+  // CR-005: Get the original page from session-expiry redirect
+  const params = new URLSearchParams(location.search);
+
+  const sessionExpired = params.get("sessionExpired") === "true";
+
+  const redirectFromQuery = params.get("redirect");
+
+  // Existing ProtectedRoute redirect support
+  const redirectFromState = location.state?.from;
+
+  // Priority:
+  // 1. Query parameter from Axios interceptor
+  // 2. Existing ProtectedRoute state
+  const redirectTo = redirectFromQuery || redirectFromState;
 
 
   const handleSubmit = async (event) => {
@@ -28,7 +42,7 @@ function Login() {
 
     setError("");
 
-    // Simple client side check (the backend checks again)
+    // Simple client side check
     if (!username.trim() || !password) {
       setError("Please enter both username and password.");
       return;
@@ -52,27 +66,32 @@ function Login() {
 
       const role = response.data.user.role;
 
-      if (redirectTo && !redirectTo.startsWith("/login")) {
+      if (
+        redirectTo &&
+        !redirectTo.startsWith("/login")
+      ) {
 
+        // CR-005:
         // Return to the page the user originally wanted
-        navigate(redirectTo);
+        navigate(redirectTo, { replace: true });
 
       } else if (role === "admin") {
 
         // Normal admin login
-        navigate("/admin");
+        navigate("/admin", { replace: true });
 
       } else {
 
         // Normal student login
-        navigate("/student");
+        navigate("/student", { replace: true });
 
       }
 
     } catch (error) {
 
-      // error.response exists when the SERVER answered (400, 401, 500).
-      // It is undefined when the request never reached the server.
+      // Login 401 must remain a normal login error.
+      // api.js excludes /auth/login from session-expiry handling.
+
       if (error.response) {
 
         setError(
@@ -82,6 +101,7 @@ function Login() {
 
       } else {
 
+        // Network error
         setError(
           "Cannot reach the server. Please check that the backend is running on http://localhost:3000"
         );
@@ -90,7 +110,7 @@ function Login() {
 
     } finally {
 
-      // Always stop the loading state, success or failure
+      // Always stop loading
       setLoading(false);
 
     }
@@ -111,10 +131,21 @@ function Login() {
         </p>
 
 
+        {/* CR-005: Session expired message */}
+        {sessionExpired && (
+          <p className="error">
+            Your session has expired. Please log in again.
+          </p>
+        )}
+
+
         <form onSubmit={handleSubmit}>
 
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+
+            <label htmlFor="username">
+              Username
+            </label>
 
             <input
               id="username"
@@ -125,11 +156,15 @@ function Login() {
               autoComplete="username"
               disabled={loading}
             />
+
           </div>
 
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+
+            <label htmlFor="password">
+              Password
+            </label>
 
             <input
               id="password"
@@ -140,11 +175,14 @@ function Login() {
               autoComplete="current-password"
               disabled={loading}
             />
+
           </div>
 
 
           {error && (
-            <p className="error">{error}</p>
+            <p className="error">
+              {error}
+            </p>
           )}
 
 
@@ -153,16 +191,29 @@ function Login() {
             className="btn btn-primary btn-block"
             disabled={loading}
           >
+
             <FaSignInAlt />
-            {loading ? "Logging in..." : "Login"}
+
+            {loading
+              ? "Logging in..."
+              : "Login"
+            }
+
           </button>
 
         </form>
 
 
         <p className="login-footer">
+
           Not sure where to go?{" "}
-          <Link to="/courses"><FaSearch /> Browse the courses</Link> first.
+
+          <Link to="/courses">
+            <FaSearch /> Browse the courses
+          </Link>
+
+          {" "}first.
+
         </p>
 
       </div>
@@ -172,3 +223,4 @@ function Login() {
 }
 
 export default Login;
+
