@@ -21,14 +21,32 @@ const EMPTY_COURSE = {
   price: "",
   image: "",
   description: "",
+  max_students: "",
 };
 
-const LEVEL_OPTIONS = ["Beginner", "Intermediate", "Advanced"];
+const LEVEL_OPTIONS = [
+  "Beginner",
+  "Intermediate",
+  "Advanced",
+];
 
-// Load the course list
+// =====================================================
+// GET ALL COURSES
+// =====================================================
 async function fetchAllCourses() {
   const response = await api.get("/courses");
-  return response.data.courses;
+
+  // Backend returns array directly
+  if (Array.isArray(response.data)) {
+    return response.data;
+  }
+
+  // Also support { courses: [...] }
+  if (Array.isArray(response.data?.courses)) {
+    return response.data.courses;
+  }
+
+  return [];
 }
 
 function ManageCourses() {
@@ -45,26 +63,30 @@ function ManageCourses() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Form visibility + editing course
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
-  const [formData, setFormData] = useState(EMPTY_COURSE);
+  const [formData, setFormData] = useState({
+    ...EMPTY_COURSE,
+  });
+
   const [formError, setFormError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
-  // --------------------------------------------------
-  // Load courses
-  // --------------------------------------------------
+  // ===================================================
+  // LOAD COURSES
+  // ===================================================
   useEffect(() => {
     const loadCourses = async () => {
       try {
         const data = await fetchAllCourses();
         setCourses(data);
-      } catch (error) {
+      } catch (err) {
+        console.error("Load courses error:", err);
+
         setError(
-          error.response?.data?.message ||
+          err.response?.data?.message ||
             "Failed to load courses"
         );
       } finally {
@@ -75,24 +97,63 @@ function ManageCourses() {
     loadCourses();
   }, []);
 
-  // --------------------------------------------------
-  // Refresh courses
-  // --------------------------------------------------
+  // ===================================================
+  // REFRESH COURSES
+  // ===================================================
   const refreshCourses = async () => {
-    const data = await fetchAllCourses();
-    setCourses(data);
+    try {
+      const data = await fetchAllCourses();
+      setCourses(data);
+    } catch (err) {
+      console.error("Refresh courses error:", err);
+
+      setError(
+        err.response?.data?.message ||
+          "Failed to refresh courses"
+      );
+    }
   };
 
-  // --------------------------------------------------
-  // Filter + Sort
-  // --------------------------------------------------
-  const filteredAndSortedCourses = courses
-    .filter((course) => {
-      const search = searchTerm.toLowerCase().trim();
+  // ===================================================
+  // AVAILABILITY
+  // ===================================================
+  const getAvailability = (course) => {
+    const maxStudents = course?.max_students;
 
-      if (!search) {
-        return true;
-      }
+    // NULL / blank = Unlimited
+    if (
+      maxStudents === null ||
+      maxStudents === undefined ||
+      maxStudents === ""
+    ) {
+      return "Unlimited";
+    }
+
+    const max = Number(maxStudents);
+    const enrolled = Number(
+      course?.enrolled_count || 0
+    );
+
+    if (
+      course?.is_full === true ||
+      enrolled >= max
+    ) {
+      return "Course Full";
+    }
+
+    return `${enrolled} / ${max} students`;
+  };
+
+  // ===================================================
+  // FILTER + SORT
+  // ===================================================
+  const filteredAndSortedCourses = [...courses]
+    .filter((course) => {
+      const search = searchTerm
+        .toLowerCase()
+        .trim();
+
+      if (!search) return true;
 
       return (
         String(course.id || "")
@@ -107,53 +168,58 @@ function ManageCourses() {
       );
     })
     .filter((course) => {
-      if (categoryFilter === "All") {
-        return true;
-      }
+      if (categoryFilter === "All") return true;
 
       return course.category === categoryFilter;
     })
     .filter((course) => {
-      if (levelFilter === "All") {
-        return true;
-      }
+      if (levelFilter === "All") return true;
 
       return course.level === levelFilter;
     })
     .sort((a, b) => {
-      if (!sortField) {
-        return 0;
-      }
+      if (!sortField) return 0;
 
       let valueA = a[sortField];
       let valueB = b[sortField];
 
-      if (sortField === "price" || sortField === "id") {
-        valueA = Number(valueA);
-        valueB = Number(valueB);
+      if (
+        sortField === "price" ||
+        sortField === "id" ||
+        sortField === "max_students" ||
+        sortField === "enrolled_count"
+      ) {
+        valueA = Number(valueA || 0);
+        valueB = Number(valueB || 0);
       } else {
         valueA = String(valueA || "").toLowerCase();
         valueB = String(valueB || "").toLowerCase();
       }
 
       if (valueA < valueB) {
-        return sortDirection === "asc" ? -1 : 1;
+        return sortDirection === "asc"
+          ? -1
+          : 1;
       }
 
       if (valueA > valueB) {
-        return sortDirection === "asc" ? 1 : -1;
+        return sortDirection === "asc"
+          ? 1
+          : -1;
       }
 
       return 0;
     });
 
-  // --------------------------------------------------
-  // Sort
-  // --------------------------------------------------
+  // ===================================================
+  // SORT
+  // ===================================================
   const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection(
-        sortDirection === "asc" ? "desc" : "asc"
+        sortDirection === "asc"
+          ? "desc"
+          : "asc"
       );
     } else {
       setSortField(field);
@@ -161,9 +227,9 @@ function ManageCourses() {
     }
   };
 
-  // --------------------------------------------------
-  // Reset filters
-  // --------------------------------------------------
+  // ===================================================
+  // RESET FILTERS
+  // ===================================================
   const resetFilters = () => {
     setSearchTerm("");
     setCategoryFilter("All");
@@ -172,44 +238,46 @@ function ManageCourses() {
     setSortDirection("asc");
   };
 
-  // --------------------------------------------------
-  // Form input change
-  // --------------------------------------------------
+  // ===================================================
+  // FORM CHANGE
+  // ===================================================
   const handleChange = (event) => {
     const { name, value } = event.target;
 
-    setFormData({
-      ...formData,
+    setFormData((previous) => ({
+      ...previous,
       [name]: value,
-    });
+    }));
 
-    // Remove field error when user starts fixing it
     if (fieldErrors[name]) {
-      setFieldErrors({
-        ...fieldErrors,
-        [name]: undefined,
-      });
+      setFieldErrors((previous) => ({
+        ...previous,
+        [name]: "",
+      }));
     }
   };
 
-  // --------------------------------------------------
-  // Open Add Form
-  // --------------------------------------------------
-  const openAddForm = () => {
-    setShowForm(true);
+  // ===================================================
+  // OPEN CREATE FORM
+  // ===================================================
+  const openCreateForm = () => {
     setEditingId(null);
-    setFormData(EMPTY_COURSE);
+
+    setFormData({
+      ...EMPTY_COURSE,
+    });
+
     setFormError("");
     setFieldErrors({});
     setError("");
     setSuccess("");
+    setShowForm(true);
   };
 
-  // --------------------------------------------------
-  // Open Edit Form
-  // --------------------------------------------------
+  // ===================================================
+  // OPEN EDIT FORM
+  // ===================================================
   const openEditForm = (course) => {
-    setShowForm(true);
     setEditingId(course.id);
 
     setFormData({
@@ -217,53 +285,136 @@ function ManageCourses() {
       category: course.category || "",
       level: course.level || "Beginner",
       duration: course.duration || "",
-      price: String(course.price ?? ""),
+      price:
+        course.price === null ||
+        course.price === undefined
+          ? ""
+          : String(course.price),
       image: course.image || "",
       description: course.description || "",
+
+      // IMPORTANT:
+      // Keep the actual capacity value
+      max_students:
+        course.max_students === null ||
+        course.max_students === undefined
+          ? ""
+          : String(course.max_students),
     });
 
     setFormError("");
     setFieldErrors({});
     setError("");
     setSuccess("");
+    setShowForm(true);
   };
 
-  // --------------------------------------------------
-  // Close Form
-  // --------------------------------------------------
+  // ===================================================
+  // CLOSE FORM
+  // ===================================================
   const closeForm = () => {
     setShowForm(false);
     setEditingId(null);
-    setFormData(EMPTY_COURSE);
+
+    setFormData({
+      ...EMPTY_COURSE,
+    });
+
     setFormError("");
     setFieldErrors({});
   };
 
-  // --------------------------------------------------
-  // Create / Update Course
-  // --------------------------------------------------
+  // ===================================================
+  // VALIDATE FORM
+  // ===================================================
+  const validateForm = () => {
+    const errors = {};
+
+    if (!formData.title.trim()) {
+      errors.title = "Title is required";
+    }
+
+    if (!formData.category.trim()) {
+      errors.category = "Category is required";
+    }
+
+    if (!formData.level) {
+      errors.level = "Level is required";
+    }
+
+    if (!formData.duration.trim()) {
+      errors.duration = "Duration is required";
+    }
+
+    if (
+      formData.price === "" ||
+      formData.price === null ||
+      formData.price === undefined
+    ) {
+      errors.price = "Price is required";
+    } else if (
+      Number.isNaN(Number(formData.price)) ||
+      Number(formData.price) < 0
+    ) {
+      errors.price = "Price cannot be negative";
+    }
+
+    // ================================================
+    // MAXIMUM STUDENTS
+    // ================================================
+    const maxStudents = String(
+      formData.max_students ?? ""
+    ).trim();
+
+    if (maxStudents !== "") {
+      if (!/^\d+$/.test(maxStudents)) {
+        errors.max_students =
+          "Maximum students must be a positive integer";
+      } else if (
+        parseInt(maxStudents, 10) <= 0
+      ) {
+        errors.max_students =
+          "Maximum students must be a positive integer";
+      }
+    }
+
+    setFieldErrors(errors);
+
+    return Object.keys(errors).length === 0;
+  };
+
+  // ===================================================
+  // SUBMIT FORM
+  // ===================================================
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    setFormError("");
-    setFieldErrors({});
     setError("");
     setSuccess("");
+    setFormError("");
 
-    // Basic client-side validation
-    if (
-      !formData.title.trim() ||
-      !formData.category.trim() ||
-      !formData.level ||
-      !formData.duration.trim() ||
-      formData.price === ""
-    ) {
-      setFormError("Please fill in all required fields.");
+    if (!validateForm()) {
+      setFormError(
+        "Please correct the highlighted fields."
+      );
       return;
     }
 
-    // Backend payload
-    const coursePayload = {
+    setSaving(true);
+
+    // ================================================
+    // IMPORTANT CAPACITY CONVERSION
+    // ================================================
+    const maxStudentsText = String(
+      formData.max_students ?? ""
+    ).trim();
+
+    const maxStudents =
+      maxStudentsText === ""
+        ? null
+        : parseInt(maxStudentsText, 10);
+
+    const payload = {
       title: formData.title.trim(),
       category: formData.category.trim(),
       level: formData.level,
@@ -271,50 +422,81 @@ function ManageCourses() {
       price: Number(formData.price),
       image: formData.image.trim(),
       description: formData.description.trim(),
+
+      // NUMBER when supplied
+      // NULL only when blank
+      max_students: maxStudents,
     };
 
-    setSaving(true);
+    // Debug
+    console.log(
+      "FINAL COURSE PAYLOAD:",
+      payload
+    );
+
+    console.log(
+      "FINAL MAX STUDENTS:",
+      payload.max_students
+    );
 
     try {
       if (editingId) {
-        // Update
         const response = await api.put(
           `/courses/${editingId}`,
-          coursePayload
+          payload
         );
 
         setSuccess(
-          response.data.message || "Course updated successfully."
+          response.data?.message ||
+            "Course updated successfully"
         );
       } else {
-        // Create
         const response = await api.post(
           "/courses",
-          coursePayload
+          payload
+        );
+
+        console.log(
+          "CREATE RESPONSE:",
+          response.data
+        );
+
+        console.log(
+          "CREATED MAX STUDENTS:",
+          response.data?.course?.max_students
         );
 
         setSuccess(
-          response.data.message || "Course created successfully."
+          response.data?.message ||
+            "Course created successfully"
         );
       }
 
       closeForm();
 
-      // Reload latest courses
       await refreshCourses();
-    } catch (error) {
-      const serverErrors = error.response?.data?.errors;
+    } catch (err) {
+      console.error(
+        "Save course error:",
+        err
+      );
 
-      if (
-        serverErrors &&
-        Object.keys(serverErrors).length > 0
-      ) {
-        setFieldErrors(serverErrors);
-        setFormError("Please fix the highlighted fields.");
+      const responseData =
+        err.response?.data;
+
+      if (responseData?.errors) {
+        setFieldErrors(
+          responseData.errors
+        );
+
+        setFormError(
+          responseData.message ||
+            "Validation failed"
+        );
       } else {
         setFormError(
-          error.response?.data?.message ||
-            "Could not save the course. Please try again."
+          responseData?.message ||
+            "Failed to save course"
         );
       }
     } finally {
@@ -322,243 +504,167 @@ function ManageCourses() {
     }
   };
 
-  // --------------------------------------------------
-  // Delete Course
-  // --------------------------------------------------
-  const handleDelete = async (course) => {
+  // ===================================================
+  // DELETE COURSE
+  // ===================================================
+  const handleDelete = async (id) => {
     const confirmed = window.confirm(
-      `Delete "${course.title}"? This cannot be undone.`
+      "Are you sure you want to delete this course?"
     );
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     setError("");
     setSuccess("");
 
     try {
       const response = await api.delete(
-        `/courses/${course.id}`
+        `/courses/${id}`
       );
 
       setSuccess(
-        response.data.message || "Course deleted successfully."
+        response.data?.message ||
+          "Course deleted successfully"
       );
 
       await refreshCourses();
-    } catch (error) {
+    } catch (err) {
+      console.error(
+        "Delete course error:",
+        err
+      );
+
       setError(
-        error.response?.data?.message ||
-          "Could not delete the course."
+        err.response?.data?.message ||
+          "Failed to delete course"
       );
     }
   };
 
-  // --------------------------------------------------
-  // JSX
-  // --------------------------------------------------
+  // ===================================================
+  // CATEGORIES
+  // ===================================================
+  const categories = [
+    "All",
+    ...Array.from(
+      new Set(
+        courses
+          .map((course) => course.category)
+          .filter(Boolean)
+      )
+    ),
+  ];
+
+  // ===================================================
+  // RENDER
+  // ===================================================
   return (
     <>
       <Navbar />
 
-      <div className="container">
-        {/* ================= PAGE HEADER ================= */}
+      <main className="manage-courses-page">
         <div className="page-header">
           <div>
             <h1>Manage Courses</h1>
-
-            <p className="page-subtitle">
-              Add new courses, update the existing ones, or
-              remove courses that are no longer offered.
+            <p>
+              Create, update and manage courses.
             </p>
           </div>
 
           <button
             type="button"
             className="btn btn-primary"
-            onClick={
-              showForm ? closeForm : openAddForm
-            }
+            onClick={openCreateForm}
           >
-            {showForm ? <FaTimes /> : <FaPlus />}
-
-            {showForm ? "Cancel" : "Add Course"}
+            <FaPlus />
+            Add Course
           </button>
         </div>
-
-        {/* ================= FILTER BAR ================= */}
-        <div className="filter-bar">
-          <input
-            type="text"
-            className="input"
-            placeholder="Search by title, category or course ID"
-            value={searchTerm}
-            onChange={(e) =>
-              setSearchTerm(e.target.value)
-            }
-          />
-
-          <select
-            className="input"
-            value={categoryFilter}
-            onChange={(e) =>
-              setCategoryFilter(e.target.value)
-            }
-          >
-            <option value="All">
-              All Categories
-            </option>
-
-            {[
-              ...new Set(
-                courses
-                  .map((course) => course.category)
-                  .filter(Boolean)
-              ),
-            ].map((category) => (
-              <option
-                key={category}
-                value={category}
-              >
-                {category}
-              </option>
-            ))}
-          </select>
-
-          <select
-            className="input"
-            value={levelFilter}
-            onChange={(e) =>
-              setLevelFilter(e.target.value)
-            }
-          >
-            <option value="All">
-              All Levels
-            </option>
-
-            {LEVEL_OPTIONS.map((level) => (
-              <option
-                key={level}
-                value={level}
-              >
-                {level}
-              </option>
-            ))}
-          </select>
-
-          <button
-            type="button"
-            className="clear-filter-btn"
-            onClick={resetFilters}
-          >
-            Reset Filters
-          </button>
-        </div>
-
-        {/* ================= RESULT COUNTER ================= */}
-        <p className="result-counter">
-          Showing {filteredAndSortedCourses.length} of{" "}
-          {courses.length} courses
-        </p>
-
-        {/* ================= SUCCESS / ERROR ================= */}
-        {success && (
-          <p className="success">
-            {success}
-          </p>
-        )}
 
         {error && (
-          <p className="error">
+          <div className="alert alert-error">
             {error}
-          </p>
+          </div>
         )}
 
-        {/* ================= ADD / EDIT FORM ================= */}
+        {success && (
+          <div className="alert alert-success">
+            {success}
+          </div>
+        )}
+
+        {/* =================================================
+            COURSE FORM
+        ================================================= */}
         {showForm && (
-          <section className="section-card">
-            <div className="section-card-header">
+          <section className="form-card">
+            <div className="form-card-header">
               <h2>
                 {editingId
                   ? "Edit Course"
-                  : "New Course"}
+                  : "Add New Course"}
               </h2>
             </div>
 
-            <form
-              className="form"
-              onSubmit={handleSubmit}
-            >
-              {/* Title + Category */}
-              <div className="form-row">
+            {formError && (
+              <div className="alert alert-error">
+                {formError}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit}>
+              <div className="form-grid">
+
+                {/* Title */}
                 <div className="form-group">
                   <label htmlFor="title">
-                    Title *
+                    Course Title
                   </label>
 
                   <input
                     id="title"
-                    className={`input${
-                      fieldErrors.title
-                        ? " input-invalid"
-                        : ""
-                    }`}
-                    type="text"
                     name="title"
+                    type="text"
                     value={formData.title}
                     onChange={handleChange}
-                    placeholder="e.g. React"
                   />
 
                   {fieldErrors.title && (
-                    <p className="field-error">
+                    <small className="field-error">
                       {fieldErrors.title}
-                    </p>
+                    </small>
                   )}
                 </div>
 
+                {/* Category */}
                 <div className="form-group">
                   <label htmlFor="category">
-                    Category *
+                    Category
                   </label>
 
                   <input
                     id="category"
-                    className={`input${
-                      fieldErrors.category
-                        ? " input-invalid"
-                        : ""
-                    }`}
-                    type="text"
                     name="category"
+                    type="text"
                     value={formData.category}
                     onChange={handleChange}
-                    placeholder="e.g. Frontend"
                   />
 
                   {fieldErrors.category && (
-                    <p className="field-error">
+                    <small className="field-error">
                       {fieldErrors.category}
-                    </p>
+                    </small>
                   )}
                 </div>
-              </div>
 
-              {/* Level + Duration + Price */}
-              <div className="form-row">
+                {/* Level */}
                 <div className="form-group">
                   <label htmlFor="level">
-                    Level *
+                    Level
                   </label>
 
                   <select
                     id="level"
-                    className={`input${
-                      fieldErrors.level
-                        ? " input-invalid"
-                        : ""
-                    }`}
                     name="level"
                     value={formData.level}
                     onChange={handleChange}
@@ -576,129 +682,117 @@ function ManageCourses() {
                   </select>
 
                   {fieldErrors.level && (
-                    <p className="field-error">
+                    <small className="field-error">
                       {fieldErrors.level}
-                    </p>
+                    </small>
                   )}
                 </div>
 
+                {/* Duration */}
                 <div className="form-group">
                   <label htmlFor="duration">
-                    Duration *
+                    Duration
                   </label>
 
                   <input
                     id="duration"
-                    className={`input${
-                      fieldErrors.duration
-                        ? " input-invalid"
-                        : ""
-                    }`}
-                    type="text"
                     name="duration"
+                    type="text"
                     value={formData.duration}
                     onChange={handleChange}
-                    placeholder="e.g. 10 Weeks"
                   />
 
                   {fieldErrors.duration && (
-                    <p className="field-error">
+                    <small className="field-error">
                       {fieldErrors.duration}
-                    </p>
+                    </small>
                   )}
                 </div>
 
+                {/* Price */}
                 <div className="form-group">
                   <label htmlFor="price">
-                    Price (Rs.) *
+                    Price
                   </label>
 
                   <input
                     id="price"
-                    className={`input${
-                      fieldErrors.price
-                        ? " input-invalid"
-                        : ""
-                    }`}
+                    name="price"
                     type="number"
                     min="0"
                     step="0.01"
-                    name="price"
                     value={formData.price}
                     onChange={handleChange}
-                    placeholder="e.g. 25000"
                   />
 
                   {fieldErrors.price && (
-                    <p className="field-error">
+                    <small className="field-error">
                       {fieldErrors.price}
-                    </p>
+                    </small>
                   )}
+                </div>
+
+                {/* =================================================
+                    MAXIMUM STUDENTS
+                ================================================= */}
+                <div className="form-group">
+                  <label htmlFor="max_students">
+                    Maximum Students
+                  </label>
+
+                  <input
+                    id="max_students"
+                    name="max_students"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={formData.max_students}
+                    onChange={handleChange}
+                    placeholder="Example: 30"
+                  />
+
+                  <small>
+                    Leave blank for Unlimited.
+                  </small>
+
+                  {fieldErrors.max_students && (
+                    <small className="field-error">
+                      {fieldErrors.max_students}
+                    </small>
+                  )}
+                </div>
+
+                {/* Image */}
+                <div className="form-group">
+                  <label htmlFor="image">
+                    Image URL
+                  </label>
+
+                  <input
+                    id="image"
+                    name="image"
+                    type="text"
+                    value={formData.image}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                {/* Description */}
+                <div className="form-group form-group-full">
+                  <label htmlFor="description">
+                    Description
+                  </label>
+
+                  <textarea
+                    id="description"
+                    name="description"
+                    rows="5"
+                    value={formData.description}
+                    onChange={handleChange}
+                  />
                 </div>
               </div>
 
-              {/* Image */}
-              <div className="form-group">
-                <label htmlFor="image">
-                  Image URL
-                </label>
-
-                <input
-                  id="image"
-                  className={`input${
-                    fieldErrors.image
-                      ? " input-invalid"
-                      : ""
-                  }`}
-                  type="text"
-                  name="image"
-                  value={formData.image}
-                  onChange={handleChange}
-                  placeholder="https://placehold.co/300x180?text=React"
-                />
-
-                {fieldErrors.image && (
-                  <p className="field-error">
-                    {fieldErrors.image}
-                  </p>
-                )}
-              </div>
-
-              {/* Description */}
-              <div className="form-group">
-                <label htmlFor="description">
-                  Description
-                </label>
-
-                <textarea
-                  id="description"
-                  className={`input${
-                    fieldErrors.description
-                      ? " input-invalid"
-                      : ""
-                  }`}
-                  rows="4"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
-                  placeholder="Short summary of what students will learn."
-                />
-
-                {fieldErrors.description && (
-                  <p className="field-error">
-                    {fieldErrors.description}
-                  </p>
-                )}
-              </div>
-
-              {/* Form error */}
-              {formError && (
-                <p className="error">
-                  {formError}
-                </p>
-              )}
-
-              {/* Form buttons */}
               <div className="form-actions">
                 <button
                   type="submit"
@@ -716,7 +810,7 @@ function ManageCourses() {
 
                 <button
                   type="button"
-                  className="btn btn-outline"
+                  className="btn btn-secondary"
                   onClick={closeForm}
                   disabled={saving}
                 >
@@ -728,155 +822,195 @@ function ManageCourses() {
           </section>
         )}
 
-        {/* ================= COURSE TABLE ================= */}
-        <section className="section-card">
-          <div className="section-card-header">
-            <h2>
-              All Courses
-              {courses.length > 0
-                ? ` (${courses.length})`
-                : ""}
-            </h2>
+        {/* =================================================
+            FILTERS
+        ================================================= */}
+        <section className="filters-card">
+          <div className="filter-group">
+            <label htmlFor="search">
+              Search
+            </label>
 
-            <Link
-              to="/admin/enrollments"
-              className="link-inline"
-            >
-              <FaEye />
-              Manage enrollments
-            </Link>
+            <input
+              id="search"
+              type="text"
+              value={searchTerm}
+              onChange={(event) =>
+                setSearchTerm(
+                  event.target.value
+                )
+              }
+              placeholder="Search by ID, title or category"
+            />
           </div>
 
-          {/* Loading */}
-          {loading && (
-            <p className="loading">
-              Loading courses...
-            </p>
-          )}
+          <div className="filter-group">
+            <label htmlFor="categoryFilter">
+              Category
+            </label>
 
-          {/* No courses in database */}
-          {!loading &&
-            courses.length === 0 && (
-              <p className="empty">
-                No courses available.
-              </p>
-            )}
+            <select
+              id="categoryFilter"
+              value={categoryFilter}
+              onChange={(event) =>
+                setCategoryFilter(
+                  event.target.value
+                )
+              }
+            >
+              {categories.map(
+                (category) => (
+                  <option
+                    key={category}
+                    value={category}
+                  >
+                    {category}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
 
-          {/* Courses exist but filters return nothing */}
-          {!loading &&
-            courses.length > 0 &&
-            filteredAndSortedCourses.length === 0 && (
-              <p className="empty">
-                No courses match your search or filters.
-              </p>
-            )}
+          <div className="filter-group">
+            <label htmlFor="levelFilter">
+              Level
+            </label>
 
-          {/* Course table */}
-          {!loading &&
-            filteredAndSortedCourses.length > 0 && (
-              <div className="table-wrapper">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th
-                        onClick={() =>
-                          handleSort("id")
-                        }
-                      >
-                        ID{" "}
-                        {sortField === "id" &&
-                          (sortDirection === "asc"
-                            ? "↑"
-                            : "↓")}
-                      </th>
+            <select
+              id="levelFilter"
+              value={levelFilter}
+              onChange={(event) =>
+                setLevelFilter(
+                  event.target.value
+                )
+              }
+            >
+              <option value="All">
+                All
+              </option>
 
-                      <th>Image</th>
+              {LEVEL_OPTIONS.map(
+                (level) => (
+                  <option
+                    key={level}
+                    value={level}
+                  >
+                    {level}
+                  </option>
+                )
+              )}
+            </select>
+          </div>
 
-                      <th
-                        onClick={() =>
-                          handleSort("title")
-                        }
-                      >
-                        Title{" "}
-                        {sortField === "title" &&
-                          (sortDirection === "asc"
-                            ? "↑"
-                            : "↓")}
-                      </th>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={resetFilters}
+          >
+            Reset
+          </button>
+        </section>
 
-                      <th
-                        onClick={() =>
-                          handleSort("category")
-                        }
-                      >
-                        Category{" "}
-                        {sortField === "category" &&
-                          (sortDirection === "asc"
-                            ? "↑"
-                            : "↓")}
-                      </th>
+        {/* =================================================
+            COURSE TABLE
+        ================================================= */}
+        <section className="table-card">
+          {loading ? (
+            <p>Loading courses...</p>
+          ) : filteredAndSortedCourses.length ===
+            0 ? (
+            <p>No courses found.</p>
+          ) : (
+            <div className="table-responsive">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th
+                      onClick={() =>
+                        handleSort("id")
+                      }
+                    >
+                      ID
+                    </th>
 
-                      <th
-                        onClick={() =>
-                          handleSort("level")
-                        }
-                      >
-                        Level{" "}
-                        {sortField === "level" &&
-                          (sortDirection === "asc"
-                            ? "↑"
-                            : "↓")}
-                      </th>
+                    <th
+                      onClick={() =>
+                        handleSort("title")
+                      }
+                    >
+                      Title
+                    </th>
 
-                      <th
-                        onClick={() =>
-                          handleSort("duration")
-                        }
-                      >
-                        Duration{" "}
-                        {sortField === "duration" &&
-                          (sortDirection === "asc"
-                            ? "↑"
-                            : "↓")}
-                      </th>
+                    <th
+                      onClick={() =>
+                        handleSort("category")
+                      }
+                    >
+                      Category
+                    </th>
 
-                      <th
-                        onClick={() =>
-                          handleSort("price")
-                        }
-                      >
-                        Price{" "}
-                        {sortField === "price" &&
-                          (sortDirection === "asc"
-                            ? "↑"
-                            : "↓")}
-                      </th>
+                    <th
+                      onClick={() =>
+                        handleSort("level")
+                      }
+                    >
+                      Level
+                    </th>
 
-                      <th className="table-actions-column">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
+                    <th
+                      onClick={() =>
+                        handleSort("price")
+                      }
+                    >
+                      Price
+                    </th>
 
-                  <tbody>
-                    {filteredAndSortedCourses.map(
-                      (course) => (
-                        <tr key={course.id}>
-                          <td>{course.id}</td>
+                    <th>
+                      Availability
+                    </th>
 
+                    <th>
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredAndSortedCourses.map(
+                    (course) => {
+                      const isLimited =
+                        course.max_students !==
+                          null &&
+                        course.max_students !==
+                          undefined &&
+                        course.max_students !== "";
+
+                      const isFull =
+                        isLimited &&
+                        (
+                          course.is_full ===
+                            true ||
+                          Number(
+                            course.enrolled_count ||
+                              0
+                          ) >=
+                            Number(
+                              course.max_students
+                            )
+                        );
+
+                      return (
+                        <tr
+                          key={course.id}
+                        >
                           <td>
-                            <img
-                              src={
-                                course.image ||
-                                "https://placehold.co/80x50?text=No+Image"
-                              }
-                              alt={course.title}
-                              className="table-thumb"
-                            />
+                            {course.id}
                           </td>
 
                           <td>
-                            {course.title}
+                            <strong>
+                              {course.title}
+                            </strong>
                           </td>
 
                           <td>
@@ -884,24 +1018,40 @@ function ManageCourses() {
                           </td>
 
                           <td>
-                            <span className="tag tag-level">
-                              {course.level}
+                            {course.level}
+                          </td>
+
+                          <td>
+                            Rs.{" "}
+                            {course.price}
+                          </td>
+
+                          <td>
+                            <span
+                              className={
+                                isFull
+                                  ? "course-full"
+                                  : "course-available"
+                              }
+                            >
+                              {getAvailability(
+                                course
+                              )}
                             </span>
                           </td>
 
                           <td>
-                            {course.duration}
-                          </td>
-
-                          <td>
-                            Rs. {course.price}
-                          </td>
-
-                          <td>
                             <div className="table-actions">
+                              <Link
+                                to={`/courses/${course.id}`}
+                                className="btn btn-secondary"
+                              >
+                                <FaEye />
+                              </Link>
+
                               <button
                                 type="button"
-                                className="btn btn-small btn-outline"
+                                className="btn btn-secondary"
                                 onClick={() =>
                                   openEditForm(
                                     course
@@ -909,32 +1059,31 @@ function ManageCourses() {
                                 }
                               >
                                 <FaEdit />
-                                Edit
                               </button>
 
                               <button
                                 type="button"
-                                className="btn btn-small btn-danger"
+                                className="btn btn-danger"
                                 onClick={() =>
                                   handleDelete(
-                                    course
+                                    course.id
                                   )
                                 }
                               >
                                 <FaTrash />
-                                Delete
                               </button>
                             </div>
                           </td>
                         </tr>
-                      )
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                      );
+                    }
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
-      </div>
+      </main>
 
       <Footer />
     </>

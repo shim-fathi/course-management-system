@@ -20,22 +20,15 @@ CREATE TABLE IF NOT EXISTS users (
 -- Courses table
 CREATE TABLE IF NOT EXISTS courses (
     id INT AUTO_INCREMENT PRIMARY KEY,
-
     title VARCHAR(100) NOT NULL,
-
     category VARCHAR(50) NOT NULL,
-
     level VARCHAR(30) NOT NULL,
-
     duration VARCHAR(30) NOT NULL,
-
     price DECIMAL(10, 2) NOT NULL,
-
     image VARCHAR(500),
-
-    description TEXT
+    description TEXT,
+    max_students INT NULL
 );
-
 
 -- Enrollments table
 CREATE TABLE IF NOT EXISTS enrollments (

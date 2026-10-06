@@ -1,7 +1,36 @@
+
 import { Link } from "react-router-dom";
 import { FaEye } from "react-icons/fa";
 
 function CourseCard({ course }) {
+
+  // Course availability
+  const getAvailability = () => {
+
+    // Unlimited course
+    if (
+      course.max_students === null ||
+      course.max_students === undefined ||
+      course.max_students === ""
+    ) {
+      return "Unlimited";
+    }
+
+    const maxStudents = Number(course.max_students);
+    const enrolledCount = Number(course.enrolled_count || 0);
+
+    // Course is full
+    if (
+      course.is_full === true ||
+      enrolledCount >= maxStudents
+    ) {
+      return "Course Full";
+    }
+
+    // Limited course with available seats
+    return `${enrolledCount} / ${maxStudents} students`;
+  };
+
 
   return (
 
@@ -19,6 +48,7 @@ function CourseCard({ course }) {
       <div className="course-card-body">
 
         <div className="course-card-tags">
+
           <span className="tag tag-category">
             {course.category}
           </span>
@@ -26,6 +56,7 @@ function CourseCard({ course }) {
           <span className="tag tag-level">
             {course.level}
           </span>
+
         </div>
 
 
@@ -42,6 +73,7 @@ function CourseCard({ course }) {
 
 
         <ul className="course-card-meta">
+
           <li>
             <strong>Duration:</strong> {course.duration}
           </li>
@@ -49,6 +81,12 @@ function CourseCard({ course }) {
           <li>
             <strong>Price:</strong> Rs. {course.price}
           </li>
+
+          <li>
+            <strong>Availability:</strong>{" "}
+            {getAvailability()}
+          </li>
+
         </ul>
 
 
@@ -67,3 +105,4 @@ function CourseCard({ course }) {
 }
 
 export default CourseCard;
+

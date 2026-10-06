@@ -1,3 +1,4 @@
+
 const Enrollment = require("../models/enrollmentModel");
 const Course = require("../models/courseModel");
 
@@ -10,6 +11,7 @@ const enrollInCourse = async (req, res) => {
     // Logged-in student's ID
     const studentId = req.user.id;
 
+
     // Check course ID
     if (!courseId) {
       return res.status(400).json({
@@ -17,8 +19,19 @@ const enrollInCourse = async (req, res) => {
       });
     }
 
+
+    // Validate course ID
+    if (!Number.isInteger(Number(courseId))) {
+      return res.status(400).json({
+        message: "Invalid course ID",
+      });
+    }
+
+    const numericCourseId = Number(courseId);
+
+
     // Check whether course exists
-    const course = await Course.getById(courseId);
+    const course = await Course.getById(numericCourseId);
 
     if (!course) {
       return res.status(404).json({
@@ -26,11 +39,12 @@ const enrollInCourse = async (req, res) => {
       });
     }
 
+
     // Check whether student is already enrolled
     const existingEnrollment =
       await Enrollment.findByStudentAndCourse(
         studentId,
-        courseId
+        numericCourseId
       );
 
     if (existingEnrollment) {
@@ -39,11 +53,25 @@ const enrollInCourse = async (req, res) => {
       });
     }
 
-    // Create enrollment
-    const enrollmentId = await Enrollment.create(
-      studentId,
-      courseId
-    );
+
+    /*
+     * CR-007
+     *
+     * Create enrollment with server-side capacity
+     * enforcement.
+     *
+     * The model method should perform the capacity
+     * check and INSERT inside one database transaction.
+     *
+     * This prevents two students from taking the
+     * final available seat at the same time.
+     */
+    const enrollmentId =
+      await Enrollment.createWithCapacity(
+        studentId,
+        numericCourseId
+      );
+
 
     return res.status(201).json({
       message: "Course enrollment successful",
@@ -51,10 +79,42 @@ const enrollInCourse = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error(
       "Error enrolling in course:",
       error.message
     );
+
+
+    /*
+     * CR-007
+     *
+     * Course capacity has been reached.
+     */
+    if (
+      error.code === "COURSE_FULL" ||
+      error.message === "COURSE_FULL"
+    ) {
+
+      return res.status(409).json({
+        message: "Course is full",
+      });
+    }
+
+
+    /*
+     * Handle duplicate enrollment safely.
+     */
+    if (
+      error.code === "DUPLICATE_ENROLLMENT" ||
+      error.message === "DUPLICATE_ENROLLMENT"
+    ) {
+
+      return res.status(409).json({
+        message: "You are already enrolled in this course",
+      });
+    }
+
 
     return res.status(500).json({
       message: "Internal server error",
@@ -63,13 +123,16 @@ const enrollInCourse = async (req, res) => {
 };
 
 
+
 // Get logged-in student's courses
 const getMyEnrollments = async (req, res) => {
   try {
+
     const studentId = req.user.id;
 
     const enrollments =
       await Enrollment.getByStudent(studentId);
+
 
     return res.status(200).json({
       message: "Enrollments retrieved successfully",
@@ -77,6 +140,7 @@ const getMyEnrollments = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error(
       "Error getting student enrollments:",
       error.message
@@ -89,13 +153,28 @@ const getMyEnrollments = async (req, res) => {
 };
 
 
+
 // Get students enrolled in a course
 const getCourseEnrollments = async (req, res) => {
   try {
+
     const { courseId } = req.params;
 
+
+    // Validate course ID
+    if (!courseId || !Number.isInteger(Number(courseId))) {
+      return res.status(400).json({
+        message: "Invalid course ID",
+      });
+    }
+
+    const numericCourseId = Number(courseId);
+
+
     // Check whether course exists
-    const course = await Course.getById(courseId);
+    const course =
+      await Course.getById(numericCourseId);
+
 
     if (!course) {
       return res.status(404).json({
@@ -103,8 +182,10 @@ const getCourseEnrollments = async (req, res) => {
       });
     }
 
+
     const enrollments =
-      await Enrollment.getByCourse(courseId);
+      await Enrollment.getByCourse(numericCourseId);
+
 
     return res.status(200).json({
       message: "Course enrollments retrieved successfully",
@@ -113,6 +194,7 @@ const getCourseEnrollments = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error(
       "Error getting course enrollments:",
       error.message
@@ -125,11 +207,14 @@ const getCourseEnrollments = async (req, res) => {
 };
 
 
+
 // Get all enrollments
 const getAllEnrollments = async (req, res) => {
   try {
+
     const enrollments =
       await Enrollment.getAll();
+
 
     return res.status(200).json({
       message: "All enrollments retrieved successfully",
@@ -137,6 +222,7 @@ const getAllEnrollments = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error(
       "Error getting all enrollments:",
       error.message
@@ -149,13 +235,25 @@ const getAllEnrollments = async (req, res) => {
 };
 
 
+
 // Delete enrollment - Admin
 const deleteEnrollment = async (req, res) => {
   try {
+
     const { id } = req.params;
 
+
+    // Validate enrollment ID
+    if (!id || !Number.isInteger(Number(id))) {
+      return res.status(400).json({
+        message: "Invalid enrollment ID",
+      });
+    }
+
+
     const result =
-      await Enrollment.delete(id);
+      await Enrollment.delete(Number(id));
+
 
     if (result.affectedRows === 0) {
       return res.status(404).json({
@@ -163,11 +261,20 @@ const deleteEnrollment = async (req, res) => {
       });
     }
 
+
+    /*
+     * CR-007
+     *
+     * Deleting an enrollment automatically frees
+     * the course seat because the enrollment record
+     * is removed.
+     */
     return res.status(200).json({
       message: "Enrollment deleted successfully",
     });
 
   } catch (error) {
+
     console.error(
       "Error deleting enrollment:",
       error.message
@@ -180,14 +287,18 @@ const deleteEnrollment = async (req, res) => {
 };
 
 
+
 // CR-006
 // Student cancels their own enrollment
 const cancelMyEnrollment = async (req, res) => {
   try {
+
     const { id } = req.params;
+
 
     // Student ID comes ONLY from authenticated user
     const studentId = req.user.id;
+
 
     // Validate enrollment ID
     if (!id || !Number.isInteger(Number(id))) {
@@ -196,11 +307,15 @@ const cancelMyEnrollment = async (req, res) => {
       });
     }
 
-    // Delete only if enrollment belongs to logged-in student
-    const result = await Enrollment.deleteByStudent(
-      Number(id),
-      studentId
-    );
+
+    // Delete only if enrollment belongs to
+    // logged-in student
+    const result =
+      await Enrollment.deleteByStudent(
+        Number(id),
+        studentId
+      );
+
 
     // Enrollment does not exist
     // OR belongs to another student
@@ -210,11 +325,18 @@ const cancelMyEnrollment = async (req, res) => {
       });
     }
 
+
+    /*
+     * CR-007
+     *
+     * Cancelling an enrollment frees the seat.
+     */
     return res.status(200).json({
       message: "Enrollment cancelled successfully",
     });
 
   } catch (error) {
+
     console.error(
       "Error cancelling enrollment:",
       error.message
@@ -227,6 +349,7 @@ const cancelMyEnrollment = async (req, res) => {
 };
 
 
+
 module.exports = {
   enrollInCourse,
   getMyEnrollments,
@@ -235,3 +358,4 @@ module.exports = {
   deleteEnrollment,
   cancelMyEnrollment,
 };
+

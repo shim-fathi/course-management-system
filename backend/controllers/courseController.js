@@ -1,31 +1,33 @@
 const Course = require("../models/courseModel");
-const User = require("../models/userModel");
+const db = require("../config/db");
 const validateCourse = require("../helpers/validateCourse");
 
-// Get all courses
-const getAllCourses = async (req, res) => {
+// GET ALL COURSES
+exports.getAllCourses = async (req, res) => {
   try {
     const courses = await Course.getAll();
 
-    res.status(200).json({
-      message: "Courses retrieved successfully",
-      courses,
-    });
-
+    return res.status(200).json({ courses });
   } catch (error) {
-    console.error("Error getting courses:", error.message);
+    console.error("Get courses error:", error);
 
-    res.status(500).json({
-      message: "Internal server error",
+    return res.status(500).json({
+      message: "Failed to fetch courses",
+      error: error.message,
     });
   }
 };
 
-
-// Get one course
-const getCourseById = async (req, res) => {
+// GET COURSE BY ID
+exports.getCourseById = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({
+        message: "Invalid course ID",
+      });
+    }
 
     const course = await Course.getById(id);
 
@@ -35,37 +37,55 @@ const getCourseById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
-      message: "Course retrieved successfully",
-      course,
-    });
-
+    return res.status(200).json(course);
   } catch (error) {
-    console.error("Error getting course:", error.message);
+    console.error("Get course error:", error);
 
-    res.status(500).json({
-      message: "Internal server error",
+    return res.status(500).json({
+      message: "Failed to fetch course",
+      error: error.message,
     });
   }
 };
 
-
-// Create course
-const createCourse = async (req, res) => {
+// GET COURSE/STUDENT STATISTICS
+exports.getStats = async (req, res) => {
   try {
-    const {
-      title,
-      category,
-      level,
-      duration,
-      price,
-      image,
-      description,
-    } = req.body;
+    const [courseRows] = await db.execute(
+      "SELECT COUNT(*) AS course_count FROM courses"
+    );
 
-        const { errors, data } = await validateCourse(req.body, {
-      isUpdate: false,
+    const [studentRows] = await db.execute(
+      "SELECT COUNT(*) AS student_count FROM users WHERE role = 'student'"
+    );
+
+    return res.status(200).json({
+      courseCount: Number(courseRows[0]?.course_count || 0),
+      studentCount: Number(studentRows[0]?.student_count || 0),
     });
+  } catch (error) {
+    console.error("Get stats error:", error);
+
+    return res.status(500).json({
+      message: "Failed to fetch statistics",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// CREATE COURSE
+// =====================================================
+exports.createCourse = async (req, res) => {
+  try {
+    console.log("========== CREATE COURSE ==========");
+    console.log("REQ.BODY:", req.body);
+    console.log("MAX STUDENTS FROM FRONTEND:", req.body.max_students);
+
+    const { errors, data } = await validateCourse(req.body);
+
+    console.log("VALIDATED DATA:", data);
+    console.log("MAX STUDENTS AFTER VALIDATION:", data.max_students);
 
     if (Object.keys(errors).length > 0) {
       return res.status(400).json({
@@ -76,37 +96,43 @@ const createCourse = async (req, res) => {
 
     const courseId = await Course.create(data);
 
-    res.status(201).json({
+    console.log("COURSE CREATED ID:", courseId);
+
+    const course = await Course.getById(courseId);
+
+    console.log("CREATED COURSE FROM DATABASE:", course);
+    console.log("MAX STUDENTS FROM DATABASE:", course?.max_students);
+
+    return res.status(201).json({
       message: "Course created successfully",
-      courseId,
+      course,
     });
-
   } catch (error) {
-    console.error("Error creating course:", error.message);
+    console.error("Create course error:", error);
 
-    res.status(500).json({
-      message: "Internal server error",
+    return res.status(500).json({
+      message: "Failed to create course",
+      error: error.message,
     });
   }
 };
 
-
-// Update course
-const updateCourse = async (req, res) => {
+// =====================================================
+// UPDATE COURSE
+// =====================================================
+exports.updateCourse = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = Number(req.params.id);
 
-    const {
-      title,
-      category,
-      level,
-      duration,
-      price,
-      image,
-      description,
-    } = req.body;
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({
+        message: "Invalid course ID",
+      });
+    }
 
-    // Check if course exists
+    console.log("UPDATE COURSE BODY:", req.body);
+    console.log("UPDATE MAX STUDENTS:", req.body.max_students);
+
     const existingCourse = await Course.getById(id);
 
     if (!existingCourse) {
@@ -115,12 +141,16 @@ const updateCourse = async (req, res) => {
       });
     }
 
-        const { errors, data } = await validateCourse(req.body, {
+    const { errors, data } = await validateCourse(req.body, {
       isUpdate: true,
       currentId: id,
     });
 
-  
+    console.log("UPDATE VALIDATED DATA:", data);
+    console.log(
+      "UPDATE MAX STUDENTS AFTER VALIDATION:",
+      data.max_students
+    );
 
     if (Object.keys(errors).length > 0) {
       return res.status(400).json({
@@ -129,32 +159,70 @@ const updateCourse = async (req, res) => {
       });
     }
 
+    // Prevent reducing capacity below current enrollment
+    if (data.max_students !== null) {
+      const [rows] = await db.execute(
+        `
+        SELECT COUNT(*) AS enrolled_count
+        FROM enrollments
+        WHERE course_id = ?
+        `,
+        [id]
+      );
+
+      const enrolledCount = Number(
+        rows[0]?.enrolled_count || 0
+      );
+
+      const newMaxStudents = Number(data.max_students);
+
+      if (newMaxStudents < enrolledCount) {
+        return res.status(400).json({
+          message:
+            "Maximum students cannot be less than the current enrollment count",
+          enrolled_count: enrolledCount,
+          max_students: newMaxStudents,
+        });
+      }
+    }
+
     await Course.update(id, data);
 
-    // Get updated course
     const updatedCourse = await Course.getById(id);
 
-    res.status(200).json({
+    console.log("UPDATED COURSE FROM DATABASE:", updatedCourse);
+    console.log(
+      "UPDATED MAX STUDENTS FROM DATABASE:",
+      updatedCourse?.max_students
+    );
+
+    return res.status(200).json({
       message: "Course updated successfully",
       course: updatedCourse,
     });
-
   } catch (error) {
-    console.error("Error updating course:", error.message);
+    console.error("Update course error:", error);
 
-    res.status(500).json({
-      message: "Internal server error",
+    return res.status(500).json({
+      message: "Failed to update course",
+      error: error.message,
     });
   }
 };
 
-
-// Delete course
-const deleteCourse = async (req, res) => {
+// =====================================================
+// DELETE COURSE
+// =====================================================
+exports.deleteCourse = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = Number(req.params.id);
 
-    // Check if course exists
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({
+        message: "Invalid course ID",
+      });
+    }
+
     const existingCourse = await Course.getById(id);
 
     if (!existingCourse) {
@@ -165,46 +233,15 @@ const deleteCourse = async (req, res) => {
 
     await Course.delete(id);
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Course deleted successfully",
     });
-
   } catch (error) {
-    console.error("Error deleting course:", error.message);
+    console.error("Delete course error:", error);
 
-    res.status(500).json({
-      message: "Internal server error",
+    return res.status(500).json({
+      message: "Failed to delete course",
+      error: error.message,
     });
   }
-};
-
-
-// Get statistics (PUBLIC)
-const getStats = async (req, res) => {
-  try {
-    const courses = await Course.getAll();
-    const studentCount = await User.countByRole("student");
-
-    res.status(200).json({
-      message: "Statistics retrieved successfully",
-      courseCount: courses.length,
-      studentCount: studentCount,
-    });
-
-  } catch (error) {
-    console.error("Error getting statistics:", error.message);
-
-    res.status(500).json({
-      message: "Internal server error",
-    });
-  }
-};
-
-module.exports = {
-  getAllCourses,
-  getCourseById,
-  createCourse,
-  updateCourse,
-  deleteCourse,
-  getStats,
 };
