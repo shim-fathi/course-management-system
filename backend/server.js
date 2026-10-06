@@ -3,7 +3,7 @@ const cors = require("cors");
 require("dotenv").config();
 
 const app = express();
-const PORT = 3000;
+const PORT = 5000;
 
 
 // Middleware
@@ -29,7 +29,7 @@ app.use("/api/courses", courseRoutes);
 
 // Protected routes - require valid JWT
 app.use("/api/users", authMiddleware, userRoutes);
-app.use("/api/enrollments", authMiddleware, enrollmentRoutes);
+app.use("/api/enrollments", enrollmentRoutes);
 
 
 // Start Server

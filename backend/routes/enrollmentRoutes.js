@@ -8,13 +8,17 @@ const {
   getCourseEnrollments,
   getAllEnrollments,
   deleteEnrollment,
+  cancelMyEnrollment,
 } = require("../controllers/enrollmentController");
 
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
 
 
-// Student (JWT + student role required)
+// =====================================================
+// STUDENT ROUTES
+// =====================================================
+
 // Enroll in a course
 router.post(
   "/",
@@ -24,8 +28,7 @@ router.post(
 );
 
 
-// Student (JWT + student role required)
-// View my enrolled courses
+// View logged-in student's enrollments
 router.get(
   "/my",
   authMiddleware,
@@ -34,7 +37,20 @@ router.get(
 );
 
 
-// Admin (JWT + admin role required)
+// CR-006
+// Student cancels ONLY their own enrollment
+router.delete(
+  "/my/:id",
+  authMiddleware,
+  roleMiddleware(["student"]),
+  cancelMyEnrollment
+);
+
+
+// =====================================================
+// ADMIN ROUTES
+// =====================================================
+
 // View all enrollments
 router.get(
   "/",
@@ -44,8 +60,7 @@ router.get(
 );
 
 
-// Admin (JWT + admin role required)
-// View students enrolled in a course
+// View students enrolled in a specific course
 router.get(
   "/course/:courseId",
   authMiddleware,
@@ -54,8 +69,7 @@ router.get(
 );
 
 
-// Admin (JWT + admin role required)
-// Delete an enrollment
+// Admin deletes an enrollment
 router.delete(
   "/:id",
   authMiddleware,

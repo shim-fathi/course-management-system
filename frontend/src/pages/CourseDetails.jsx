@@ -20,6 +20,7 @@ function CourseDetails() {
   const [success, setSuccess] = useState("");
 
   const [enrolling, setEnrolling] = useState(false);
+  const [enrolled, setEnrolled] = useState(false);
 
 
   // Read the login state from localStorage.
@@ -38,6 +39,28 @@ function CourseDetails() {
         const response = await api.get(`/courses/${id}`);
 
         setCourse(response.data.course);
+
+        if (studentLoggedIn) {
+  try {
+    const enrollmentResponse =
+      await api.get("/enrollments/my");
+
+    const myEnrollments =
+      enrollmentResponse.data.enrollments || [];
+
+    const isEnrolled = myEnrollments.some(
+      (enrollment) =>
+        String(enrollment.course_id) === String(id)
+    );
+
+    setEnrolled(isEnrolled);
+  } catch (error) {
+    console.error(
+      "Failed to check enrollment:",
+      error
+    );
+  }
+}
 
       } catch (error) {
 
@@ -73,6 +96,7 @@ function CourseDetails() {
       });
 
       setSuccess(response.data.message);
+setEnrolled(true);
 
     } catch (error) {
 
@@ -238,16 +262,23 @@ function CourseDetails() {
               {/* Logged in as a student: show the Enroll button */}
               {studentLoggedIn && (
                 <>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-lg"
-                    onClick={handleEnroll}
-                    disabled={enrolling}
-                  >
-                    <FaShoppingCart />
-                    {enrolling ? "Enrolling..." : "Enroll Now"}
-                  </button>
+                  {!enrolled && (
+  <button
+    type="button"
+    className="btn btn-primary btn-lg"
+    onClick={handleEnroll}
+    disabled={enrolling}
+  >
+    <FaShoppingCart />
+    {enrolling ? "Enrolling..." : "Enroll Now"}
+  </button>
+)}
 
+{enrolled && (
+  <p className="success">
+    You are currently enrolled in this course.
+  </p>
+)}
                   <Link to="/my-enrollments" className="btn btn-outline">
                     <FaGraduationCap />
                     My Enrollments

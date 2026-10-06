@@ -1,6 +1,7 @@
 const Enrollment = require("../models/enrollmentModel");
 const Course = require("../models/courseModel");
 
+
 // Enroll in a course
 const enrollInCourse = async (req, res) => {
   try {
@@ -44,7 +45,7 @@ const enrollInCourse = async (req, res) => {
       courseId
     );
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Course enrollment successful",
       enrollmentId,
     });
@@ -55,7 +56,7 @@ const enrollInCourse = async (req, res) => {
       error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Internal server error",
     });
   }
@@ -70,7 +71,7 @@ const getMyEnrollments = async (req, res) => {
     const enrollments =
       await Enrollment.getByStudent(studentId);
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Enrollments retrieved successfully",
       enrollments,
     });
@@ -81,7 +82,7 @@ const getMyEnrollments = async (req, res) => {
       error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Internal server error",
     });
   }
@@ -105,7 +106,7 @@ const getCourseEnrollments = async (req, res) => {
     const enrollments =
       await Enrollment.getByCourse(courseId);
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Course enrollments retrieved successfully",
       course,
       enrollments,
@@ -117,7 +118,7 @@ const getCourseEnrollments = async (req, res) => {
       error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Internal server error",
     });
   }
@@ -130,7 +131,7 @@ const getAllEnrollments = async (req, res) => {
     const enrollments =
       await Enrollment.getAll();
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "All enrollments retrieved successfully",
       enrollments,
     });
@@ -141,14 +142,14 @@ const getAllEnrollments = async (req, res) => {
       error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Internal server error",
     });
   }
 };
 
 
-// Delete enrollment
+// Delete enrollment - Admin
 const deleteEnrollment = async (req, res) => {
   try {
     const { id } = req.params;
@@ -162,7 +163,7 @@ const deleteEnrollment = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Enrollment deleted successfully",
     });
 
@@ -172,7 +173,54 @@ const deleteEnrollment = async (req, res) => {
       error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
+
+// CR-006
+// Student cancels their own enrollment
+const cancelMyEnrollment = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Student ID comes ONLY from authenticated user
+    const studentId = req.user.id;
+
+    // Validate enrollment ID
+    if (!id || !Number.isInteger(Number(id))) {
+      return res.status(400).json({
+        message: "Invalid enrollment ID",
+      });
+    }
+
+    // Delete only if enrollment belongs to logged-in student
+    const result = await Enrollment.deleteByStudent(
+      Number(id),
+      studentId
+    );
+
+    // Enrollment does not exist
+    // OR belongs to another student
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        message: "Enrollment not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Enrollment cancelled successfully",
+    });
+
+  } catch (error) {
+    console.error(
+      "Error cancelling enrollment:",
+      error.message
+    );
+
+    return res.status(500).json({
       message: "Internal server error",
     });
   }
@@ -185,4 +233,5 @@ module.exports = {
   getCourseEnrollments,
   getAllEnrollments,
   deleteEnrollment,
+  cancelMyEnrollment,
 };

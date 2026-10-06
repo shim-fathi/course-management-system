@@ -1725,3 +1725,7 @@ textarea.input {
     grid-template-columns: 1fr;
   }
 }
+
+.enrollment-cancel-btn {
+  margin-top: 10px;
+}

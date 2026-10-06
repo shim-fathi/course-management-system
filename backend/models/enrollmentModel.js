@@ -82,24 +82,18 @@ const Enrollment = {
       `SELECT
           e.id,
           e.enrolled_at,
-
           u.id AS student_id,
           u.username,
           u.full_name,
-
           c.id AS course_id,
           c.title,
           c.category,
           c.level
-
        FROM enrollments e
-
        JOIN users u
          ON e.student_id = u.id
-
        JOIN courses c
          ON e.course_id = c.id
-
        ORDER BY e.enrolled_at DESC`
     );
 
@@ -107,7 +101,7 @@ const Enrollment = {
   },
 
 
-  // Delete enrollment
+  // Delete enrollment - Admin
   async delete(id) {
     const [result] = await db.execute(
       `DELETE FROM enrollments
@@ -118,6 +112,21 @@ const Enrollment = {
     return result;
   },
 
+
+  // CR-006
+  // Delete enrollment - Student can delete only their own enrollment
+  async deleteByStudent(id, studentId) {
+    const [result] = await db.execute(
+      `DELETE FROM enrollments
+       WHERE id = ?
+       AND student_id = ?`,
+      [id, studentId]
+    );
+
+    return result;
+  },
+
 };
+
 
 module.exports = Enrollment;

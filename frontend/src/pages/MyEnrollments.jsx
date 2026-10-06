@@ -12,8 +12,10 @@ function MyEnrollments() {
   const [enrollments, setEnrollments] = useState([]);
   const [sortOption, setSortOption] = useState("newest");
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState("");
+const [success, setSuccess] = useState("");
+const [cancellingId, setCancellingId] = useState(null);
 
   const user = getUser();
 
@@ -36,6 +38,48 @@ function MyEnrollments() {
 
     getEnrollments();
   }, []);
+
+  // ---------- Cancel Enrollment ----------
+const handleCancelEnrollment = async (enrollmentId) => {
+  const confirmed = window.confirm(
+    "Are you sure you want to cancel this enrollment?"
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  setError("");
+  setSuccess("");
+  setCancellingId(enrollmentId);
+
+  try {
+    const response = await api.delete(
+      `/enrollments/my/${enrollmentId}`
+    );
+
+    setSuccess(
+      response.data.message ||
+      "Enrollment cancelled successfully."
+    );
+
+    // Remove cancelled enrollment from current list
+    setEnrollments((currentEnrollments) =>
+      currentEnrollments.filter(
+        (enrollment) =>
+          enrollment.id !== enrollmentId
+      )
+    );
+
+  } catch (error) {
+    setError(
+      error.response?.data?.message ||
+      "Failed to cancel enrollment."
+    );
+  } finally {
+    setCancellingId(null);
+  }
+};
 
   // ---------- Safe price conversion ----------
   const safePrice = (price) => {
@@ -150,6 +194,12 @@ function MyEnrollments() {
             {error}
           </p>
         )}
+
+        {success && !loading && (
+  <p className="success">
+    {success}
+  </p>
+)}
 
         {/* ---------- Enrollment Summary ---------- */}
         {!loading && !error && (
@@ -308,11 +358,24 @@ function MyEnrollments() {
                     </ul>
 
                     <Link
-                      to={`/courses/${enrollment.course_id}`}
-                      className="btn btn-outline btn-block"
-                    >
-                      View Course
-                    </Link>
+  to={`/courses/${enrollment.course_id}`}
+  className="btn btn-outline btn-block"
+>
+  View Course
+</Link>
+
+<button
+  type="button"
+  className="btn btn-danger btn-block"
+  onClick={() =>
+    handleCancelEnrollment(enrollment.id)
+  }
+  disabled={cancellingId === enrollment.id}
+>
+  {cancellingId === enrollment.id
+    ? "Cancelling..."
+    : "Cancel Enrollment"}
+</button>
 
                   </div>
 
