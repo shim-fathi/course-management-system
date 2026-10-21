@@ -820,6 +820,28 @@ textarea.input {
   min-width: 180px;
 }
 
+.enrollment-filters {
+  align-items: flex-end;
+}
+
+.enrollment-filters .form-group {
+  flex: 1 1 180px;
+  margin-bottom: 0;
+}
+
+.enrollment-pagination,
+.enrollment-pagination-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.enrollment-pagination {
+  justify-content: space-between;
+  padding: 16px 0 0;
+}
+
 /* Clear All Filters */
 
 .clear-filter-btn {

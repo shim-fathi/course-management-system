@@ -248,8 +248,54 @@ const Enrollment = {
   },
 
 
-  // Get all enrollments
-  async getAll() {
+  // Get a filtered page of enrollments and the matching record count.
+  async getAll({
+    search,
+    courseId,
+    from,
+    to,
+    sortColumn,
+    order,
+    limit,
+    offset,
+  }) {
+    const conditions = [];
+    const values = [];
+
+    if (search) {
+      conditions.push(
+        "(u.full_name LIKE ? ESCAPE '!' OR u.username LIKE ? ESCAPE '!')"
+      );
+      values.push(search, search);
+    }
+
+    if (courseId !== null) {
+      conditions.push("e.course_id = ?");
+      values.push(courseId);
+    }
+
+    if (from) {
+      conditions.push("e.enrolled_at >= ?");
+      values.push(from);
+    }
+
+    if (to) {
+      conditions.push("e.enrolled_at < DATE_ADD(?, INTERVAL 1 DAY)");
+      values.push(to);
+    }
+
+    const whereClause = conditions.length
+      ? `WHERE ${conditions.join(" AND ")}`
+      : "";
+
+    const [countRows] = await db.execute(
+      `SELECT COUNT(*) AS total
+       FROM enrollments e
+       JOIN users u ON e.student_id = u.id
+       JOIN courses c ON e.course_id = c.id
+       ${whereClause}`,
+      values
+    );
 
     const [rows] = await db.execute(
       `SELECT
@@ -303,10 +349,17 @@ const Enrollment = {
        JOIN courses c
          ON e.course_id = c.id
 
-       ORDER BY e.enrolled_at DESC`
+       ${whereClause}
+
+       ORDER BY ${sortColumn} ${order}, e.id ${order}
+       LIMIT ? OFFSET ?`,
+      [...values, limit, offset]
     );
 
-    return rows;
+    return {
+      enrollments: rows,
+      total: Number(countRows[0].total),
+    };
   },
 
 
@@ -347,4 +400,3 @@ const Enrollment = {
 
 
 module.exports = Enrollment;
-

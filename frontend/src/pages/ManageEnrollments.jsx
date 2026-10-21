@@ -5,113 +5,94 @@ import api from "../services/api";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 function ManageEnrollments() {
-
-  // Course list - used to fill the "filter by course" dropdown
   const [courses, setCourses] = useState([]);
-
-  // "" means "show every enrollment"
-  const [selectedCourseId, setSelectedCourseId] = useState("");
-
-  // The enrollments currently shown in the table
   const [enrollments, setEnrollments] = useState([]);
-
-  // When one course is selected the backend also returns the course
-  const [selectedCourse, setSelectedCourse] = useState(null);
-
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+  });
+  const [search, setSearch] = useState("");
+  const [courseId, setCourseId] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [sort, setSort] = useState("enrolled_at");
+  const [order, setOrder] = useState("desc");
+  const [limit, setLimit] = useState(20);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-
-  // Changing this number tells the effect below to reload the table.
-  // We use it after a delete so the table shows fresh data.
   const [reloadKey, setReloadKey] = useState(0);
 
-
-  // ---------- Load the course dropdown options (once) ----------
   useEffect(() => {
-
     const loadCourseOptions = async () => {
-
       try {
-
         const response = await api.get("/courses");
-
         setCourses(response.data.courses);
-
-      } catch (error) {
-
-        // The dropdown is optional, so a failure here is not fatal.
-        console.error("Could not load course options:", error.message);
-
+      } catch (loadError) {
+        console.error("Could not load course options:", loadError.message);
       }
     };
 
     loadCourseOptions();
-
   }, []);
 
-
-  // ---------- Load the enrollment table ----------
-  
   useEffect(() => {
+    const controller = new AbortController();
 
     const loadEnrollments = async () => {
-
       setLoading(true);
       setError("");
 
       try {
+        const response = await api.get("/enrollments", {
+          params: {
+            q: search,
+            courseId: courseId || undefined,
+            from: from || undefined,
+            to: to || undefined,
+            sort,
+            order,
+            page,
+            limit,
+          },
+          signal: controller.signal,
+        });
 
-        if (selectedCourseId === "") {
-
-          // ---- All enrollments ----
-          const response = await api.get("/enrollments");
-
-          setEnrollments(response.data.enrollments);
-          setSelectedCourse(null);
-
-        } else {
-
-          // ---- Students enrolled in one course ----
-          const response = await api.get(
-            `/enrollments/course/${selectedCourseId}`
+        setEnrollments(response.data.enrollments);
+        setPagination(response.data.pagination);
+      } catch (loadError) {
+        if (!controller.signal.aborted) {
+          setError(
+            loadError.response?.data?.message ||
+              "Failed to load enrollments"
           );
-
-          setEnrollments(response.data.enrollments);
-          setSelectedCourse(response.data.course);
-
+          setEnrollments([]);
         }
-
-      } catch (error) {
-
-        setError(
-          error.response?.data?.message ||
-          "Failed to load enrollments"
-        );
-
-        setEnrollments([]);
-
       } finally {
-
-        setLoading(false);
-
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     };
 
     loadEnrollments();
+    return () => controller.abort();
+  }, [search, courseId, from, to, sort, order, page, limit, reloadKey]);
 
-  }, [selectedCourseId, reloadKey]);
+  const resetPage = () => {
+    setPage(1);
+    setSuccess("");
+  };
 
-
-  // ---------- Delete an enrollment ----------
   const handleDelete = async (enrollment) => {
-
     const confirmed = window.confirm(
-      `Remove ${enrollment.full_name || enrollment.username}${
-        enrollment.title ? ` from "${enrollment.title}"` : ""
-      }?`
+      `Remove ${enrollment.full_name || enrollment.username} from "${enrollment.title}"?`
     );
 
     if (!confirmed) {
@@ -122,185 +103,218 @@ function ManageEnrollments() {
     setSuccess("");
 
     try {
-
       const response = await api.delete(`/enrollments/${enrollment.id}`);
-
       setSuccess(response.data.message);
 
-      // Ask the effect above to reload the table
-      setReloadKey(reloadKey + 1);
-
-    } catch (error) {
-
+      if (enrollments.length === 1 && page > 1) {
+        setPage(page - 1);
+      } else {
+        setReloadKey((key) => key + 1);
+      }
+    } catch (deleteError) {
       setError(
-        error.response?.data?.message ||
-        "Could not delete the enrollment."
+        deleteError.response?.data?.message ||
+          "Could not delete the enrollment."
       );
-
     }
   };
 
-
   const formatDate = (value) => {
     if (!value) return "-";
-
     return new Date(value).toLocaleDateString();
   };
 
+  const firstResult =
+    pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
+  const lastResult = Math.min(
+    pagination.page * pagination.limit,
+    pagination.total
+  );
+  const selectedCourse = courses.find(
+    (course) => String(course.id) === courseId
+  );
 
   return (
-
     <>
       <Navbar />
 
       <div className="container">
-
         <div className="page-header">
-
           <div>
             <h1>Manage Enrollments</h1>
-
             <p className="page-subtitle">
-              See who is enrolled in what, and remove enrollments when
-              needed.
+              Search, filter, and manage student enrollments.
             </p>
           </div>
-
         </div>
 
-
-        {/* ---------- Filter by course ---------- */}
-
-        <div className="filter-bar">
+        <div className="filter-bar enrollment-filters">
+          <div className="form-group">
+            <label htmlFor="studentSearch">Search student</label>
+            <input
+              id="studentSearch"
+              className="input"
+              type="search"
+              placeholder="Name or username"
+              value={search}
+              onChange={(event) => {
+                resetPage();
+                setSearch(event.target.value);
+              }}
+            />
+          </div>
 
           <div className="form-group">
-
-            <label htmlFor="courseFilter">
-              Show enrollments for
-            </label>
-
+            <label htmlFor="courseFilter">Course</label>
             <select
               id="courseFilter"
               className="input"
-              value={selectedCourseId}
+              value={courseId}
               onChange={(event) => {
-                setSuccess("");
-                setSelectedCourseId(event.target.value);
+                resetPage();
+                setCourseId(event.target.value);
               }}
             >
               <option value="">All courses</option>
-
               {courses.map((course) => (
                 <option key={course.id} value={course.id}>
                   {course.title}
                 </option>
               ))}
-
             </select>
-
           </div>
 
+          <div className="form-group">
+            <label htmlFor="enrollmentFrom">From</label>
+            <input
+              id="enrollmentFrom"
+              className="input"
+              type="date"
+              value={from}
+              onChange={(event) => {
+                resetPage();
+                setFrom(event.target.value);
+              }}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="enrollmentTo">To</label>
+            <input
+              id="enrollmentTo"
+              className="input"
+              type="date"
+              value={to}
+              onChange={(event) => {
+                resetPage();
+                setTo(event.target.value);
+              }}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="enrollmentSort">Sort by</label>
+            <select
+              id="enrollmentSort"
+              className="input"
+              value={sort}
+              onChange={(event) => {
+                resetPage();
+                setSort(event.target.value);
+              }}
+            >
+              <option value="enrolled_at">Enrollment date</option>
+              <option value="student">Student</option>
+              <option value="course">Course</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="enrollmentOrder">Order</label>
+            <select
+              id="enrollmentOrder"
+              className="input"
+              value={order}
+              onChange={(event) => {
+                resetPage();
+                setOrder(event.target.value);
+              }}
+            >
+              <option value="desc">Descending</option>
+              <option value="asc">Ascending</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="enrollmentLimit">Per page</label>
+            <select
+              id="enrollmentLimit"
+              className="input"
+              value={limit}
+              onChange={(event) => {
+                resetPage();
+                setLimit(Number(event.target.value));
+              }}
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-
-        {/* ---------- Messages ---------- */}
-
         {success && <p className="success">{success}</p>}
-
         {error && <p className="error">{error}</p>}
 
-
-        {/* ---------- Table ---------- */}
-
         <section className="section-card">
-
           <div className="section-card-header">
-
             <h2>
               {selectedCourse
-                ? `Students enrolled in "${selectedCourse.title}"`
+                ? `Enrollments in "${selectedCourse.title}"`
                 : "All Enrollments"}
-              {!loading && ` (${enrollments.length})`}
             </h2>
-
+            <span>{pagination.total} total</span>
           </div>
-
 
           {loading && <p className="loading">Loading enrollments...</p>}
 
-
-          {!loading && enrollments.length === 0 && (
+          {!loading && !error && enrollments.length === 0 && (
             <p className="empty">
-              {selectedCourseId === ""
-                ? "No enrollments have been made yet."
-                : "No students are enrolled in this course yet."}
+              {pagination.total === 0
+                ? "No enrollments match your search."
+                : "There are no enrollments on this page."}
             </p>
           )}
 
-
           {!loading && enrollments.length > 0 && (
             <div className="table-wrapper">
-
               <table className="table">
-
                 <thead>
-
-                  {selectedCourseId === "" ? (
-
-                    /* ---------- All enrollments ---------- */
-                    <tr>
-                      <th>Student</th>
-                      <th>Username</th>
-                      <th>Course</th>
-                      <th>Category</th>
-                      <th>Level</th>
-                      <th>Enrolled On</th>
-                      <th className="table-actions-column">Actions</th>
-                    </tr>
-
-                  ) : (
-
-                    /* ---------- One course ---------- */
-                    <tr>
-                      <th>Student</th>
-                      <th>Username</th>
-                      <th>Enrolled On</th>
-                      <th className="table-actions-column">Actions</th>
-                    </tr>
-
-                  )}
-
+                  <tr>
+                    <th>Student</th>
+                    <th>Username</th>
+                    <th>Course</th>
+                    <th>Category</th>
+                    <th>Level</th>
+                    <th>Enrolled On</th>
+                    <th className="table-actions-column">Actions</th>
+                  </tr>
                 </thead>
-
-
                 <tbody>
-
                   {enrollments.map((enrollment) => (
-
                     <tr key={enrollment.id}>
-
                       <td>{enrollment.full_name}</td>
-
                       <td>{enrollment.username}</td>
-
-
-                      {/* These columns only exist in "all courses" mode */}
-                      {selectedCourseId === "" && (
-                        <>
-                          <td>{enrollment.title}</td>
-                          <td>{enrollment.category}</td>
-                          <td>
-                            <span className="tag tag-level">
-                              {enrollment.level}
-                            </span>
-                          </td>
-                        </>
-                      )}
-
-
+                      <td>{enrollment.title}</td>
+                      <td>{enrollment.category}</td>
+                      <td>
+                        <span className="tag tag-level">
+                          {enrollment.level}
+                        </span>
+                      </td>
                       <td>{formatDate(enrollment.enrolled_at)}</td>
-
-
                       <td>
                         <button
                           type="button"
@@ -311,27 +325,69 @@ function ManageEnrollments() {
                           Remove
                         </button>
                       </td>
-
                     </tr>
-
                   ))}
-
                 </tbody>
-
               </table>
-
             </div>
           )}
 
+          <div className="enrollment-pagination">
+            <span>
+              Showing {firstResult}–{lastResult} of {pagination.total}
+            </span>
+            <div className="enrollment-pagination-controls">
+              <button
+                type="button"
+                className="btn btn-small"
+                disabled={loading || pagination.page <= 1}
+                onClick={() => setPage(1)}
+              >
+                First
+              </button>
+              <button
+                type="button"
+                className="btn btn-small"
+                disabled={loading || pagination.page <= 1}
+                onClick={() => setPage((current) => current - 1)}
+              >
+                Previous
+              </button>
+              <span>
+                Page {pagination.page} of {pagination.totalPages}
+              </span>
+              <button
+                type="button"
+                className="btn btn-small"
+                disabled={
+                  loading ||
+                  pagination.totalPages === 0 ||
+                  pagination.page >= pagination.totalPages
+                }
+                onClick={() => setPage((current) => current + 1)}
+              >
+                Next
+              </button>
+              <button
+                type="button"
+                className="btn btn-small"
+                disabled={
+                  loading ||
+                  pagination.totalPages === 0 ||
+                  pagination.page >= pagination.totalPages
+                }
+                onClick={() => setPage(pagination.totalPages)}
+              >
+                Last
+              </button>
+            </div>
+          </div>
         </section>
-
       </div>
 
       <Footer />
-
     </>
   );
 }
 
 export default ManageEnrollments;
-
