@@ -20,6 +20,7 @@ const authMiddleware = require("./middleware/authMiddleware");
 const userRoutes = require("./routes/userRoutes");
 const courseRoutes = require("./routes/courseRoutes");
 const enrollmentRoutes = require("./routes/enrollmentRoutes");
+const reportRoutes = require("./routes/reportRoutes");
 
 // Public auth routes (login)
 app.use("/api/auth", authRoutes);
@@ -30,6 +31,7 @@ app.use("/api/courses", courseRoutes);
 // Protected routes - require valid JWT
 app.use("/api/users", authMiddleware, userRoutes);
 app.use("/api/enrollments", enrollmentRoutes);
+app.use("/api/reports", reportRoutes);
 
 
 // Start Server

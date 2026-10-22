@@ -1165,6 +1165,52 @@ textarea.input {
   color: var(--color-muted);
 }
 
+.report-bars {
+  display: grid;
+  gap: 14px;
+}
+
+.report-bar-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(100px, 3fr) 42px;
+  align-items: center;
+  gap: 14px;
+}
+
+.report-bar-label {
+  overflow-wrap: anywhere;
+}
+
+.report-bar-track {
+  height: 12px;
+  overflow: hidden;
+  background: var(--color-border);
+  border-radius: 999px;
+}
+
+.report-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: inherit;
+}
+
+.learning-activity {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.learning-activity > div {
+  display: grid;
+  gap: 6px;
+}
+
+.learning-activity-label {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
 
 /* =========================================
    15. Section cards and tables
