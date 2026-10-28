@@ -141,6 +141,13 @@ function Navbar() {
             </>
           )}
 
+          {loggedIn && (
+            <NavLink to="/profile" className={linkClass} onClick={closeMenu}>
+              <FaUser />
+              Profile
+            </NavLink>
+          )}
+
 
           {/* ---------- Logged in: user name + logout ---------- */}
 
@@ -190,4 +197,3 @@ function Navbar() {
 }
 
 export default Navbar;
-

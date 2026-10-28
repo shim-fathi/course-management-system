@@ -34,6 +34,10 @@ export function getUser() {
   }
 }
 
+export function updateStoredUser(user) {
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
 
 // Logout - remove token and user
 export function clearAuth() {

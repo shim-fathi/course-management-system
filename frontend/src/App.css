@@ -1089,6 +1089,44 @@ textarea.input {
   margin-bottom: 0;
 }
 
+.profile-page {
+  max-width: 900px;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 20px;
+}
+
+.profile-grid .section-card {
+  margin-bottom: 0;
+}
+
+.profile-details {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+}
+
+.profile-details dt {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.profile-details dd {
+  margin: 2px 0 0;
+  color: var(--color-dark);
+  font-weight: bold;
+  overflow-wrap: anywhere;
+}
+
+.profile-password-card {
+  grid-column: 1 / -1;
+}
+
 
 /* =========================================
    14. Dashboard

@@ -1,8 +1,12 @@
-const bcrypt = require("bcryptjs");
+const bcrypt = require("bcrypt");
 
-const password = "123456";
+const BCRYPT_MAX_BYTES = 72;
+const BCRYPT_ROUNDS = 10;
 
-// 10 = bcrypt's cost/salt-round setting.
-bcrypt.hash(password, 10, (err, hash) => {
-    console.log(hash);
-});
+const hashPassword = (password) =>
+  bcrypt.hash(password, BCRYPT_ROUNDS);
+
+module.exports = {
+  BCRYPT_MAX_BYTES,
+  hashPassword,
+};

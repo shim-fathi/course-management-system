@@ -49,6 +49,7 @@ All seeded users use the same password.
 | `/login`              | public          | Login              |
 | `/student`            | student only    | Student dashboard  |
 | `/my-enrollments`     | student only    | My enrollments     |
+| `/profile`            | authenticated   | Profile and password |
 | `/admin`              | admin only      | Admin dashboard    |
 | `/admin/courses`      | admin only      | Manage courses     |
 | `/admin/enrollments`  | admin only      | Manage enrollments |
@@ -71,6 +72,7 @@ src/
 │   ├── CourseDetails.jsx
 │   ├── StudentDashboard.jsx
 │   ├── MyEnrollments.jsx
+│   ├── Profile.jsx
 │   ├── AdminDashboard.jsx
 │   ├── ManageCourses.jsx
 │   ├── ManageEnrollments.jsx
@@ -102,6 +104,9 @@ src/
 | Method | Endpoint                          | Used by                            |
 | ------ | --------------------------------- | ---------------------------------- |
 | POST   | `/api/auth/login`                 | Login                              |
+| GET    | `/api/users/me`                   | Load own profile                  |
+| PUT    | `/api/users/me`                   | Update own full name              |
+| PUT    | `/api/users/me/password`          | Change own password               |
 | GET    | `/api/courses`                    | Home, Courses, Manage Courses      |
 | GET    | `/api/courses/stats`              | Home, dashboards                   |
 | GET    | `/api/courses/:id`                | Course details                     |

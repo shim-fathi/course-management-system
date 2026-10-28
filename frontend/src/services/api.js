@@ -42,7 +42,8 @@ api.interceptors.response.use(
     // Do not handle 401 from the login request
     if (
       status === 401 &&
-      !requestUrl.includes("/auth/login")
+      !requestUrl.includes("/auth/login") &&
+      !requestUrl.includes("/users/me/password")
     ) {
       const token = localStorage.getItem("token");
 
