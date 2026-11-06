@@ -137,18 +137,18 @@ VALUES
 
 
 INSERT INTO enrollments
-(student_id, course_id)
+(student_id, course_id, status)
 VALUES
 
 -- Kamal
-(2, 1),   -- Kamal -> HTML & CSS
-(2, 2),   -- Kamal -> JavaScript
-(2, 6),   -- Kamal -> MySQL
+(2, 1, 'approved'),   -- Kamal -> HTML & CSS
+(2, 2, 'approved'),   -- Kamal -> JavaScript
+(2, 6, 'approved'),   -- Kamal -> MySQL
 
 -- Nimal
-(3, 3),   -- Nimal -> Node.js
-(3, 4),   -- Nimal -> Express.js
+(3, 3, 'approved'),   -- Nimal -> Node.js
+(3, 4, 'approved'),   -- Nimal -> Express.js
 
 -- Saman
-(4, 2),   -- Saman -> JavaScript
-(4, 7);   -- Saman -> React
+(4, 2, 'approved'),   -- Saman -> JavaScript
+(4, 7, 'approved');   -- Saman -> React

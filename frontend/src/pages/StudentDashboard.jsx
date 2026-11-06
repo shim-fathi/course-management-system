@@ -61,7 +61,17 @@ function StudentDashboard() {
     return Number.isFinite(value) ? value : 0;
   };
 
-  const totalCourseValue = enrollments.reduce(
+  const approvedEnrollments = enrollments.filter(
+    (enrollment) => enrollment.status === "approved"
+  );
+  const pendingCount = enrollments.filter(
+    (enrollment) => enrollment.status === "pending"
+  ).length;
+  const rejectedCount = enrollments.filter(
+    (enrollment) => enrollment.status === "rejected"
+  ).length;
+
+  const totalCourseValue = approvedEnrollments.reduce(
     (total, enrollment) =>
       total + safePrice(enrollment.price),
     0
@@ -115,11 +125,29 @@ function StudentDashboard() {
           {/* My Enrolled Courses */}
           <div className="dashboard-card">
             <span className="dashboard-card-value">
-              {loading ? "..." : enrollments.length}
+              {loading ? "..." : approvedEnrollments.length}
             </span>
 
             <span className="dashboard-card-label">
-              My Enrolled Courses
+              Approved Courses
+            </span>
+          </div>
+
+          <div className="dashboard-card">
+            <span className="dashboard-card-value">
+              {loading ? "..." : pendingCount}
+            </span>
+            <span className="dashboard-card-label">
+              Pending Requests
+            </span>
+          </div>
+
+          <div className="dashboard-card">
+            <span className="dashboard-card-value">
+              {loading ? "..." : rejectedCount}
+            </span>
+            <span className="dashboard-card-label">
+              Rejected Requests
             </span>
           </div>
 
@@ -182,9 +210,8 @@ function StudentDashboard() {
           {!loading &&
             recentEnrollments.length === 0 && (
               <p className="empty">
-                You have not enrolled in any courses yet.
-                Head over to the courses page and enroll in
-                your first course.
+                You have not requested or enrolled in any courses yet.
+                Browse courses to request enrollment.
               </p>
             )}
 
@@ -197,7 +224,8 @@ function StudentDashboard() {
                       <th>Course</th>
                       <th>Category</th>
                       <th>Level</th>
-                      <th>Enrolled On</th>
+                      <th>Status</th>
+                      <th>Requested On</th>
                     </tr>
                   </thead>
 
@@ -220,7 +248,17 @@ function StudentDashboard() {
                           <td>
                             {enrollment.level}
                           </td>
-
+                          <td>
+                            <span className={`tag tag-status tag-status-${enrollment.status}`}>
+                              {enrollment.status}
+                            </span>
+                            {enrollment.status === "rejected" &&
+                              enrollment.decision_note && (
+                                <p className="status-note">
+                                  Reason: {enrollment.decision_note}
+                                </p>
+                              )}
+                          </td>
                           <td>
                             {formatDate(
                               enrollment.enrolled_at
@@ -277,4 +315,3 @@ function StudentDashboard() {
 }
 
 export default StudentDashboard;
-

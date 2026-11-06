@@ -36,6 +36,7 @@ const getAll = async () => {
 
     LEFT JOIN enrollments e
       ON e.course_id = c.id
+      AND e.status = 'approved'
 
     GROUP BY
       c.id,
@@ -91,6 +92,7 @@ const getById = async (id) => {
 
     LEFT JOIN enrollments e
       ON e.course_id = c.id
+      AND e.status = 'approved'
 
     WHERE c.id = ?
 

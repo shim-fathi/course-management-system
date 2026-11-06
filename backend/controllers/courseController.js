@@ -166,6 +166,7 @@ exports.updateCourse = async (req, res) => {
         SELECT COUNT(*) AS enrolled_count
         FROM enrollments
         WHERE course_id = ?
+          AND status = 'approved'
         `,
         [id]
       );

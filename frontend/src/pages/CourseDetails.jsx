@@ -4,7 +4,6 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import {
   FaChartBar,
   FaGraduationCap,
-  FaShoppingCart,
   FaSignInAlt,
 } from "react-icons/fa";
 
@@ -26,7 +25,8 @@ function CourseDetails() {
   const [success, setSuccess] = useState("");
 
   const [enrolling, setEnrolling] = useState(false);
-  const [enrolled, setEnrolled] = useState(false);
+  const [enrollmentStatus, setEnrollmentStatus] = useState(null);
+  const [decisionNote, setDecisionNote] = useState("");
 
 
   // Read the login state from localStorage.
@@ -108,12 +108,13 @@ function CourseDetails() {
             const myEnrollments =
               enrollmentResponse.data.enrollments || [];
 
-            const isEnrolled = myEnrollments.some(
+            const enrollment = myEnrollments.find(
               (enrollment) =>
                 String(enrollment.course_id) === String(id)
             );
 
-            setEnrolled(isEnrolled);
+            setEnrollmentStatus(enrollment?.status || null);
+            setDecisionNote(enrollment?.decision_note || "");
 
           } catch (error) {
 
@@ -159,12 +160,9 @@ function CourseDetails() {
       });
 
 
-      setSuccess(
-        response.data.message ||
-        "Successfully enrolled in this course."
-      );
-
-      setEnrolled(true);
+      setSuccess(response.data.message);
+      setEnrollmentStatus("pending");
+      setDecisionNote("");
 
 
       // Refresh course availability after enrollment
@@ -186,47 +184,16 @@ function CourseDetails() {
 
     } catch (error) {
 
-      // 409 can mean already enrolled OR course full.
       if (error.response?.status === 409) {
 
         const message =
           error.response?.data?.message || "";
 
-        if (
-          message.toLowerCase().includes("full") ||
-          message.toLowerCase().includes("capacity")
-        ) {
-
-          setError(
-            "This course is full. No more seats are available."
-          );
-
-          // Refresh course data so Course Full is displayed
-          try {
-
-            const updatedCourseResponse =
-              await api.get(`/courses/${id}`);
-
-            setCourse(updatedCourseResponse.data);
-
-          } catch (refreshError) {
-
-            console.error(
-              "Failed to refresh course availability:",
-              refreshError
-            );
-
-          }
-
-        } else {
-
-          setError(
-            "You are already enrolled in this course. You can see it in My Enrollments."
-          );
-
-          setEnrolled(true);
-
-        }
+        setError(message);
+        const status = message.toLowerCase().includes("pending")
+          ? "pending"
+          : "approved";
+        setEnrollmentStatus(status);
 
       } else {
 
@@ -471,9 +438,7 @@ function CourseDetails() {
 
                 <>
 
-                  {/* Show Enroll button only when seats are available */}
-
-                  {!enrolled && !isCourseFull() && (
+                  {!["pending", "approved"].includes(enrollmentStatus) && (
 
                     <button
                       type="button"
@@ -482,35 +447,32 @@ function CourseDetails() {
                       disabled={enrolling}
                     >
 
-                      <FaShoppingCart />
+                      <FaGraduationCap />
 
                       {enrolling
-                        ? "Enrolling..."
-                        : "Enroll Now"}
+                        ? "Submitting..."
+                        : enrollmentStatus === "rejected"
+                          ? "Request Enrollment Again"
+                          : "Request Enrollment"}
 
                     </button>
                   )}
 
-
-                  {/* Course is full */}
-
-                  {!enrolled && isCourseFull() && (
-
-                    <p className="error">
-                      This course is full. No more
-                      seats are available.
+                  {enrollmentStatus === "pending" && (
+                    <p className="notice">
+                      Request Pending Approval
                     </p>
                   )}
 
+                  {enrollmentStatus === "approved" && (
+                    <p className="success">Enrollment Approved</p>
+                  )}
 
-                  {/* Already enrolled */}
-
-                  {enrolled && (
-
-                    <p className="success">
-                      You are currently enrolled
-                      in this course.
-                    </p>
+                  {enrollmentStatus === "rejected" && (
+                    <div className="error">
+                      <strong>Enrollment Rejected</strong>
+                      {decisionNote && <p>Reason: {decisionNote}</p>}
+                    </div>
                   )}
 
 

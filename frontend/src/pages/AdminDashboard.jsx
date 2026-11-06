@@ -68,10 +68,18 @@ function AdminDashboard() {
 
   // How many DIFFERENT students have at least one enrollment
   const uniqueStudents = new Set(
-    enrollments.map((enrollment) => enrollment.student_id)
+    enrollments
+      .filter((enrollment) => enrollment.status === "approved")
+      .map((enrollment) => enrollment.student_id)
   ).size;
 
-  // The 6 most recent enrollments (the backend already sorts by date DESC)
+  const approvedCount = enrollments.filter(
+    (enrollment) => enrollment.status === "approved"
+  ).length;
+  const pendingCount = enrollments.filter(
+    (enrollment) => enrollment.status === "pending"
+  ).length;
+
   const recentEnrollments = enrollments.slice(0, 6);
 
 
@@ -133,9 +141,16 @@ function AdminDashboard() {
 
           <div className="dashboard-card">
             <span className="dashboard-card-value">
-              {loading ? "..." : enrollments.length}
+              {loading ? "..." : approvedCount}
             </span>
-            <span className="dashboard-card-label">Total Enrollments</span>
+            <span className="dashboard-card-label">Approved Enrollments</span>
+          </div>
+
+          <div className="dashboard-card">
+            <span className="dashboard-card-value">
+              {loading ? "..." : pendingCount}
+            </span>
+            <span className="dashboard-card-label">Pending Requests</span>
           </div>
 
           <div className="dashboard-card">
@@ -183,7 +198,8 @@ function AdminDashboard() {
                     <th>Course</th>
                     <th>Category</th>
                     <th>Level</th>
-                    <th>Enrolled On</th>
+                    <th>Status</th>
+                    <th>Requested On</th>
                   </tr>
                 </thead>
 
@@ -197,6 +213,11 @@ function AdminDashboard() {
                       <td>
                         <span className="tag tag-level">
                           {enrollment.level}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`tag tag-status tag-status-${enrollment.status}`}>
+                          {enrollment.status}
                         </span>
                       </td>
                       <td>{formatDate(enrollment.enrolled_at)}</td>
@@ -227,7 +248,7 @@ function AdminDashboard() {
 
             <Link to="/admin/enrollments" className="quick-action">
               <span className="quick-action-icon"><FaUsers /></span>
-              <span>View and remove enrollments</span>
+              <span>Review, view and remove enrollments</span>
             </Link>
 
             <Link to="/courses" className="quick-action">

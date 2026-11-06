@@ -3,7 +3,7 @@ const Enrollment = require("../models/enrollmentModel");
 const Course = require("../models/courseModel");
 
 
-// Enroll in a course
+// Submit an enrollment request
 const enrollInCourse = async (req, res) => {
   try {
     const { courseId } = req.body;
@@ -30,52 +30,16 @@ const enrollInCourse = async (req, res) => {
     const numericCourseId = Number(courseId);
 
 
-    // Check whether course exists
-    const course = await Course.getById(numericCourseId);
-
-    if (!course) {
-      return res.status(404).json({
-        message: "Course not found",
-      });
-    }
-
-
-    // Check whether student is already enrolled
-    const existingEnrollment =
-      await Enrollment.findByStudentAndCourse(
-        studentId,
-        numericCourseId
-      );
-
-    if (existingEnrollment) {
-      return res.status(409).json({
-        message: "You are already enrolled in this course",
-      });
-    }
-
-
-    /*
-     * CR-007
-     *
-     * Create enrollment with server-side capacity
-     * enforcement.
-     *
-     * The model method should perform the capacity
-     * check and INSERT inside one database transaction.
-     *
-     * This prevents two students from taking the
-     * final available seat at the same time.
-     */
-    const enrollmentId =
-      await Enrollment.createWithCapacity(
-        studentId,
-        numericCourseId
-      );
+    const enrollmentId = await Enrollment.request(
+      studentId,
+      numericCourseId
+    );
 
 
     return res.status(201).json({
-      message: "Course enrollment successful",
+      message: "Enrollment request submitted for approval",
       enrollmentId,
+      status: "pending",
     });
 
   } catch (error) {
@@ -86,32 +50,13 @@ const enrollInCourse = async (req, res) => {
     );
 
 
-    /*
-     * CR-007
-     *
-     * Course capacity has been reached.
-     */
-    if (
-      error.code === "COURSE_FULL" ||
-      error.message === "COURSE_FULL"
-    ) {
-
-      return res.status(409).json({
-        message: "Course is full",
-      });
+    if (error.code === "COURSE_NOT_FOUND") {
+      return res.status(404).json({ message: "Course not found" });
     }
 
-
-    /*
-     * Handle duplicate enrollment safely.
-     */
-    if (
-      error.code === "DUPLICATE_ENROLLMENT" ||
-      error.message === "DUPLICATE_ENROLLMENT"
-    ) {
-
+    if (error.code === "DUPLICATE_ENROLLMENT") {
       return res.status(409).json({
-        message: "You are already enrolled in this course",
+        message: error.message,
       });
     }
 
@@ -183,8 +128,17 @@ const getCourseEnrollments = async (req, res) => {
     }
 
 
-    const enrollments =
-      await Enrollment.getByCourse(numericCourseId);
+    const status = req.query.status;
+    if (status && !["pending", "approved", "rejected"].includes(status)) {
+      return res.status(400).json({
+        message: "Invalid enrollment status",
+      });
+    }
+
+    const enrollments = await Enrollment.getByCourse(
+      numericCourseId,
+      status
+    );
 
 
     return res.status(200).json({
@@ -212,8 +166,14 @@ const getCourseEnrollments = async (req, res) => {
 const getAllEnrollments = async (req, res) => {
   try {
 
-    const enrollments =
-      await Enrollment.getAll();
+    const status = req.query.status;
+    if (status && !["pending", "approved", "rejected"].includes(status)) {
+      return res.status(400).json({
+        message: "Invalid enrollment status",
+      });
+    }
+
+    const enrollments = await Enrollment.getAll(status);
 
 
     return res.status(200).json({
@@ -234,6 +194,67 @@ const getAllEnrollments = async (req, res) => {
   }
 };
 
+
+// Admin reviews a pending enrollment request
+const updateEnrollmentStatus = async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { status, reason = "" } = req.body;
+
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      return res.status(400).json({ message: "Invalid enrollment ID" });
+    }
+
+    if (!["approved", "rejected"].includes(status)) {
+      return res.status(400).json({
+        message: "Status must be approved or rejected",
+      });
+    }
+
+    if (typeof reason !== "string") {
+      return res.status(400).json({ message: "Reason must be a string" });
+    }
+
+    const decisionNote = reason.trim();
+    if (status === "rejected" && !decisionNote) {
+      return res.status(400).json({
+        message: "A reason is required to reject an enrollment",
+      });
+    }
+
+    await Enrollment.setStatus(
+      id,
+      status,
+      req.user.id,
+      decisionNote || null
+    );
+
+    return res.status(200).json({
+      message: `Enrollment ${status} successfully`,
+      status,
+    });
+  } catch (error) {
+    console.error("Error reviewing enrollment:", error.message);
+
+    if (error.code === "ENROLLMENT_NOT_FOUND") {
+      return res.status(404).json({ message: "Enrollment not found" });
+    }
+
+    if (
+      error.code === "INVALID_ENROLLMENT_STATUS" ||
+      error.code === "COURSE_FULL" ||
+      error.code === "DUPLICATE_ENROLLMENT"
+    ) {
+      return res.status(409).json({ message: error.message });
+    }
+
+    if (error.code === "COURSE_NOT_FOUND") {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
 
 
 // Delete enrollment - Admin
@@ -317,22 +338,25 @@ const cancelMyEnrollment = async (req, res) => {
       );
 
 
-    // Enrollment does not exist
-    // OR belongs to another student
     if (result.affectedRows === 0) {
+      const enrollment = await Enrollment.findByIdAndStudent(
+        Number(id),
+        studentId
+      );
+
+      if (enrollment) {
+        return res.status(409).json({
+          message: "Only pending enrollment requests can be cancelled",
+        });
+      }
+
       return res.status(404).json({
         message: "Enrollment not found",
       });
     }
 
-
-    /*
-     * CR-007
-     *
-     * Cancelling an enrollment frees the seat.
-     */
     return res.status(200).json({
-      message: "Enrollment cancelled successfully",
+      message: "Enrollment request cancelled successfully",
     });
 
   } catch (error) {
@@ -355,7 +379,7 @@ module.exports = {
   getMyEnrollments,
   getCourseEnrollments,
   getAllEnrollments,
+  updateEnrollmentStatus,
   deleteEnrollment,
   cancelMyEnrollment,
 };
-

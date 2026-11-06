@@ -42,7 +42,7 @@ const [cancellingId, setCancellingId] = useState(null);
   // ---------- Cancel Enrollment ----------
 const handleCancelEnrollment = async (enrollmentId) => {
   const confirmed = window.confirm(
-    "Are you sure you want to cancel this enrollment?"
+    "Are you sure you want to cancel this pending enrollment request?"
   );
 
   if (!confirmed) {
@@ -89,9 +89,18 @@ const handleCancelEnrollment = async (enrollmentId) => {
   };
 
   // ---------- Enrollment Summary ----------
-  const totalEnrolledCourses = enrollments.length;
+  const approvedEnrollments = enrollments.filter(
+    (enrollment) => enrollment.status === "approved"
+  );
+  const pendingCount = enrollments.filter(
+    (enrollment) => enrollment.status === "pending"
+  ).length;
+  const rejectedCount = enrollments.filter(
+    (enrollment) => enrollment.status === "rejected"
+  ).length;
+  const totalEnrolledCourses = approvedEnrollments.length;
 
-  const totalCourseValue = enrollments.reduce(
+  const totalCourseValue = approvedEnrollments.reduce(
     (total, enrollment) =>
       total + safePrice(enrollment.price),
     0
@@ -103,7 +112,7 @@ const handleCancelEnrollment = async (enrollmentId) => {
       : 0;
 
   const distinctCategories = new Set(
-    enrollments
+    approvedEnrollments
       .map((enrollment) => enrollment.category)
       .filter(Boolean)
   ).size;
@@ -169,8 +178,8 @@ const handleCancelEnrollment = async (enrollmentId) => {
 
             <p className="page-subtitle">
               {user?.full_name
-                ? `${user.full_name}, these are the courses you are enrolled in.`
-                : "These are the courses you are enrolled in."}
+                ? `${user.full_name}, track your enrollment requests and decisions here.`
+                : "Track your enrollment requests and decisions here."}
             </p>
           </div>
 
@@ -206,8 +215,18 @@ const handleCancelEnrollment = async (enrollmentId) => {
           <div className="enrollment-summary">
 
             <div className="summary-card">
-              <h3>Total Enrolled Courses</h3>
+              <h3>Approved Enrollments</h3>
               <p>{totalEnrolledCourses}</p>
+            </div>
+
+            <div className="summary-card">
+              <h3>Pending Requests</h3>
+              <p>{pendingCount}</p>
+            </div>
+
+            <div className="summary-card">
+              <h3>Rejected Requests</h3>
+              <p>{rejectedCount}</p>
             </div>
 
             <div className="summary-card">
@@ -278,7 +297,7 @@ const handleCancelEnrollment = async (enrollmentId) => {
             <div className="empty-box">
 
               <p className="empty">
-                You have not enrolled in any courses yet.
+                You have not requested enrollment in any courses yet.
               </p>
 
               <Link
@@ -351,9 +370,28 @@ const handleCancelEnrollment = async (enrollmentId) => {
                       </li>
 
                       <li>
-                        <strong>Enrolled on:</strong>{" "}
+                        <strong>Requested on:</strong>{" "}
                         {formatDate(enrollment.enrolled_at)}
                       </li>
+                      <li>
+                        <strong>Status:</strong>{" "}
+                        <span className={`tag tag-status tag-status-${enrollment.status}`}>
+                          {enrollment.status}
+                        </span>
+                      </li>
+                      {enrollment.reviewed_at && (
+                        <li>
+                          <strong>Decision date:</strong>{" "}
+                          {formatDate(enrollment.reviewed_at)}
+                        </li>
+                      )}
+                      {enrollment.status === "rejected" &&
+                        enrollment.decision_note && (
+                          <li>
+                            <strong>Rejection reason:</strong>{" "}
+                            {enrollment.decision_note}
+                          </li>
+                        )}
 
                     </ul>
 
@@ -364,7 +402,7 @@ const handleCancelEnrollment = async (enrollmentId) => {
   View Course
 </Link>
 
-<button
+{enrollment.status === "pending" && <button
   type="button"
   className="btn btn-danger btn-block"
   onClick={() =>
@@ -374,8 +412,9 @@ const handleCancelEnrollment = async (enrollmentId) => {
 >
   {cancellingId === enrollment.id
     ? "Cancelling..."
-    : "Cancel Enrollment"}
+    : "Cancel Request"}
 </button>
+}
 
                   </div>
 
